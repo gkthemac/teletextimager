@@ -610,8 +610,6 @@ class TeletextDecode:
 			g0_char_set = g0_default_char_set
 			g2_char_set = g2_default_char_set
 
-			right_half = False;
-
 			for c in range(72):
 				# Get any local enhancements and/or active objects at this cell
 				enhances = []
@@ -752,7 +750,7 @@ class TeletextDecode:
 					elif ch_set_if == 2:
 						x26_ch_set = g2_char_set
 					elif ch_set_if == 24 and current_attr.display.und_sep == True:
-							x26_ch_set = 25
+						x26_ch_set = 25
 
 					self.cells[r][c].ch.ch_code = x26_ch_code
 					self.cells[r][c].ch.ch_set = x26_ch_set
