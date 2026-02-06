@@ -301,7 +301,6 @@ class TeletextDecode:
 				else:
 					level_filter = 0x08
 				ot_address, ot_mode, ot_data = TeletextDecode.triplet_split(page[(obj_def_y, obj_def_d)][obj_def_t])
-				print(ot_address, level_filter)
 				if it_data == ot_data and (it_address & 0x03) == (ot_address & 0x03) and (it_mode | 0x04) == ot_mode and (ot_address & level_filter) != 0:
 					if it_mode == 0x11:
 						self.act_invoc.append(self.Invocation2p5(page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
