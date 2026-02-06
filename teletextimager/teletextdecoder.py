@@ -104,6 +104,9 @@ class TeletextDecode:
 	def get_flash_phase_shown(self, r, c):
 		return self.cells[r][c].attr.flash.fl_phase_shown
 
+	def get_conceal(self, r, c):
+		return self.cells[r][c].attr.display.conceal
+
 	def get_invert(self, r, c):
 		return self.cells[r][c].attr.display.invert
 

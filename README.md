@@ -8,7 +8,6 @@ The library is under development. The internals are subject to change but the `t
 
 Still to be implemented:
 - Reading formats other than TTI.
-- Concealed text, at the moment the page is rendered as if Reveal was pressed.
 - Incremental and decremental flash within adaptive and passive objects.
 - G0 and G2 characters placed by adaptive and passive objects in character sets other than Latin.
 - Level 3.5 bold and italic text.
@@ -45,6 +44,9 @@ Select a decoding level, must be `1`, `1.5`, `2.5` or `3.5`. The default is Leve
 
 `-c, --classic`\
 Disable intepretation of black foreground, double width and double height attributes. When this parameter is specified the decoding level is set to Level 1.5 unless `-l 1` is also specified.
+
+`--conceal`\
+Hide text covered by "conceal" attribute. Otherwise the default is to reveal concealed text.
 
 `--no-header`\
 Do not render the header row.

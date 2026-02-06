@@ -17,7 +17,7 @@ class TeletextRenderPIL:
 #		self.border_lr = 80
 #		self.border_tb = 38
 
-	def render(self, decoder, border=(80, 38), flash_phase=0):
+	def render(self, decoder, border=(80, 38), flash_phase=0, reveal=False):
 		self.tt_font = [None] * 28
 
 		def load_font(n):
@@ -90,7 +90,17 @@ class TeletextRenderPIL:
 						continue
 					origin_x = border_lr + dc * font_width
 
-				load_font(decoder.get_char_set(r, c))
+				if decoder.get_conceal(r, c) and not reveal:
+					char_code = ' '
+					char_set = 0
+					char_diacritic = 0
+				else:
+					# char_code may get changed to 0x00 on flash phase
+					char_code = decoder.get_char_code(r, c)
+					char_set = decoder.get_char_set(r, c)
+					char_diacritic = decoder.get_char_diacritic(r, c)
+
+				load_font(char_set)
 
 				if not decoder.get_invert(r, c):
 					foreground = decoder.get_foreground(r, c)
@@ -98,9 +108,6 @@ class TeletextRenderPIL:
 				else:
 					foreground = decoder.get_background(r, c)
 					background = decoder.get_foreground(r, c)
-
-				# May get changed to 0x20 on conceal or 0x00 on flash phase
-				char_code = decoder.get_char_code(r, c)
 
 				if decoder.get_flash_mode(r, c) != 0:
 					# Flashing cell, decide if phase in this cycle is on or off
@@ -124,32 +131,31 @@ class TeletextRenderPIL:
 				# - the character has a G0 diacritical mark added
 				char_im = None
 
-				diacritic_reduce = decoder.get_char_diacritic(r, c) != 0 and ord(char_code) >= 0x41 and ord(char_code) <= 0x5a
-				# Capital letter with G0 diacritic has a reduced height
+				diacritic_reduce = char_diacritic != 0 and ord(char_code) >= 0x41 and ord(char_code) <= 0x5a
+				# Capital letter with G0 diacritical mark has a reduced height
 				if diacritic_reduce:
 					load_font(27)
 
-				if decoder.get_char_diacritic(r, c) != 0 or decoder.get_fragment(r, c) != decoder.Frag.NORMALSIZE:
+				if char_diacritic != 0 or decoder.get_fragment(r, c) != decoder.Frag.NORMALSIZE:
 					# Draw cell rectangle in background colour and put the foreground character on top
 					char_im = Image.new(mode='P', size=(font_width, font_height))
 					char_im_draw = ImageDraw.Draw(char_im)
 					char_im_draw.rectangle([0, 0, font_width - 1, font_height - 1], background)
 					if diacritic_reduce:
 						char_set = 27
-					else:
-						char_set = decoder.get_char_set(r, c)
 					if char_code != 0x00:
-						char_im_draw.text((0, 0), decoder.get_char_code(r, c), foreground, font=self.tt_font[char_set])
-					if decoder.get_char_diacritic(r, c) != 0:
+						char_im_draw.text((0, 0), char_code, foreground, font=self.tt_font[char_set])
+					if char_diacritic != 0:
+						# Diacritical marks come from the G2 Latin set
 						load_font(7)
-						char_im_draw.text((0, 0), chr(decoder.get_char_diacritic(r, c) + 0x40), foreground, font=self.tt_font[7])
+						char_im_draw.text((0, 0), chr(char_diacritic + 0x40), foreground, font=self.tt_font[7])
 
 				if char_im == None:
 					# Draw cell rectangle in background colour and put the foreground character on top
 					im_draw.rectangle([origin_x, origin_y, origin_x + font_width - 1, origin_y + font_height - 1], background)
 					if char_code != 0x00:
-						im_draw.text((origin_x, origin_y), char_code, fill=foreground, font=self.tt_font[decoder.get_char_set(r, c)])
-						if decoder.get_und_sep(r, c) and decoder.get_char_set(r, c) < 24:
+						im_draw.text((origin_x, origin_y), char_code, fill=foreground, font=self.tt_font[char_set])
+						if decoder.get_und_sep(r, c) and char_set < 24:
 							im_draw.rectangle([origin_x, origin_y + font_height - 2, origin_x + font_width - 1, origin_y + font_height - 1], foreground)
 				else:
 					if decoder.get_fragment(r, c) == decoder.Frag.NORMALSIZE:

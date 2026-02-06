@@ -24,6 +24,7 @@ def main():
 	parser.add_argument('-s', '--subpage', type=int, help='select subpage in TTI file')
 	parser.add_argument('-l', '--level', default='2.5', type=level_valid, help='set decoding level')
 	parser.add_argument('-c', '--classic', action='store_true', help='disable black foreground and double width')
+	parser.add_argument('--conceal', action='store_true', help='hide concealed text')
 	parser.add_argument('--no-header', action='store_true', help='remove header row')
 	parser.add_argument('--no-flof', action='store_true', help='remove row 24')
 	args = parser.parse_args()
@@ -76,7 +77,7 @@ def main():
 			subpage = args.subpage
 		my_decoder.decode(my_pages[subpage - 1], level = level, black_foreground = not args.classic, double_width = not args.classic)
 		my_pil_render = teletextrenderpil.TeletextRenderPIL()
-		im = my_pil_render.render(my_decoder, border=(24, 20))
+		im = my_pil_render.render(my_decoder, reveal = not args.conceal, border=(24, 20))
 		im = im.resize((int(im.width * 1.2), im.height))
 		im.show()
 		sys.exit(0)
