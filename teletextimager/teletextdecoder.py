@@ -446,7 +446,7 @@ class TeletextDecode:
 
 		start_attr = self.Attribute()
 
-		default_region = 0
+		default_region = page.get('region', 0)
 		default_nos = 0
 		if 12 in page['control_bits']:
 			default_nos |= 1

@@ -8,7 +8,7 @@ import tempfile
 
 from PIL import Image
 
-from teletextimager import teletextreadtti, teletextdecoder, teletextrenderpil
+from teletextimager import teletextreadep1, teletextreadtti, teletextdecoder, teletextrenderpil
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -45,6 +45,8 @@ def main():
 	in_ext = os.path.splitext(args.infile)[1]
 	if in_ext.lower() == '.tti' or in_ext.lower() == '.ttix':
 		my_reader = teletextreadtti.TeletextReadTTI()
+	elif in_ext.lower() == '.ep1' or in_ext.lower() == '.epx':
+		my_reader = teletextreadep1.TeletextReadEP1()
 	else:
 		sys.exit('Filename extension \'{0}\' not supported'.format(in_ext))
 
