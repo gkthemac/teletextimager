@@ -270,6 +270,8 @@ class TeletextDecode:
 				self.cells[r][c].ch.ch_code = 0x20
 				self.cells[r][c].ch.ch_set = 0
 				self.cells[r][c].ch.ch_diacritic = 0
+				self.cells[r][c].attr = self.Attribute()
+				self.cells[r][c].frag = self.Frag.NORMALSIZE
 		self._palette = [
 			0x000, 0xf00, 0x0f0, 0xff0, 0x00f, 0xf0f, 0x0ff, 0xfff,
 			0x000, 0x700, 0x070, 0x770, 0x007, 0x707, 0x077, 0x777,
