@@ -133,7 +133,7 @@ def main():
 
 		# and then pass that result to the render which will give us the final image
 		my_pil_render = teletextrenderpil.TeletextRenderPIL()
-		im = my_pil_render.render(my_decoder, border=(24, 20))
+		im = my_pil_render.render(my_decoder, reveal = not args.conceal, border=(24, 20))
 
 		out_ext = os.path.splitext(outfile)[1]
 		if out_ext.lower() == '.gif':
