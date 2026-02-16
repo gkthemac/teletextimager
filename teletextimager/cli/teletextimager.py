@@ -8,7 +8,7 @@ import tempfile
 
 from PIL import Image
 
-from teletextimager import teletextreadep1, teletextreadtti, teletextdecoder, teletextrenderpil
+from teletextimager import teletextreadep1, teletextreadt42, teletextreadtti, teletextdecoder, teletextrenderpil
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -45,6 +45,8 @@ def main():
 	in_ext = os.path.splitext(args.infile)[1]
 	if in_ext.lower() == '.tti' or in_ext.lower() == '.ttix':
 		my_reader = teletextreadtti.TeletextReadTTI()
+	elif in_ext.lower() == '.t42':
+		my_reader = teletextreadt42.TeletextReadT42()
 	elif in_ext.lower() == '.ep1' or in_ext.lower() == '.epx':
 		my_reader = teletextreadep1.TeletextReadEP1()
 	else:
@@ -55,7 +57,7 @@ def main():
 #		my_pages = my_reader.read(sys.stdin)
 #	else:
 
-	# The reader reads in a TTI file and returns a list, one item per subpage
+	# The reader reads in a file and returns a list, one item per subpage
 	# Each item is a dictionary holding the packets of the subpage
 	my_pages = my_reader.read(args.infile)
 
@@ -69,6 +71,9 @@ def main():
 			s.pop(24)
 
 	my_decoder = teletextdecoder.TeletextDecode()
+
+	if args.subpage != None and in_ext.lower() == '.t42':
+		print('Warning: subpage selection not implemented for .t42', file=sys.stderr)
 
 	# If the '-o' option isn't given try to show the subpage using Image.show()
 	# This behaviour may not be kept
@@ -86,7 +91,7 @@ def main():
 
 	percent_s = args.outfile.find('%s') != -1
 
-	if args.subpage != None:
+	if args.subpage != None and in_ext.lower() != '.t42':
 		if args.subpage > len(my_pages):
 			print('Warning: selected subpage {0} not found in input file'.format(args.subpage), file=sys.stderr)
 			subpage_range = [len(my_pages) - 1]

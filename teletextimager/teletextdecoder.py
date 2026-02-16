@@ -161,16 +161,18 @@ class TeletextDecode:
 					if not (y, d) in page:
 						break
 					next_triplet = page[(y, d)][t]
-				t_address, t_mode, t_data = TeletextDecode.triplet_split(next_triplet)
 
-				# Stop at Termination Marker
-				if t_mode == 0x1f and t_address == 0x3f:
-					break
-				# Object Definitions also mark the end of the current Object Definition
-				if (t_mode == 0x15 or t_mode == 0x16 or t_mode == 0x17) and (not first_triplet):
-					break
+				if next_triplet != None:
+					t_address, t_mode, t_data = TeletextDecode.triplet_split(next_triplet)
 
-				self.map_triplet(t_address, t_mode, t_data)
+					# Stop at Termination Marker
+					if t_mode == 0x1f and t_address == 0x3f:
+						break
+					# Object Definitions also mark the end of the current Object Definition
+					if (t_mode == 0x15 or t_mode == 0x16 or t_mode == 0x17) and (not first_triplet):
+						break
+
+					self.map_triplet(t_address, t_mode, t_data)
 
 				first_triplet = False
 
@@ -496,16 +498,22 @@ class TeletextDecode:
 			if pres_des != None:
 				pres = page[(28, pres_des)]
 
-				default_region = (pres[0] >> 10) & 0xf
-				default_nos = (pres[0] >> 7) & 0x7
-				second_region = pres[0] >> 14
-				second_nos = pres[1] & 0x7
+				if pres[0] != None:
+					default_region = (pres[0] >> 10) & 0xf
+					default_nos = (pres[0] >> 7) & 0x7
+					second_region = pres[0] >> 14
 
-				self.full_screen = (pres[12] >> 4) & 0x1f
-				full_row_down = (pres[12] >> 9) & 0x1f
-				bbcs = (pres[12] & 0x4000) == 0x4000
+				if pres[1] != None:
+					second_nos = pres[1] & 0x7
 
-				clut_remap = pres[12] >> 15
+				if pres[12] != None:
+					self.full_screen = (pres[12] >> 4) & 0x1f
+					full_row_down = (pres[12] >> 9) & 0x1f
+					bbcs = (pres[12] & 0x4000) == 0x4000
+					clut_remap = pres[12] >> 15
+				else:
+					clut_remap = 0
+
 				if clut_remap == 0:
 					fground_map = 0
 					bground_map = 0
@@ -532,7 +540,7 @@ class TeletextDecode:
 					bground_map = 24
 				start_attr.foreground = fground_map | 7
 
-				if self.level == 3 or (pres[1] & 0x20) == 0x20:
+				if pres[1] != None and (self.level == 3 or (pres[1] & 0x20) == 0x20):
 					side_panel_cols = (pres[1] >> 6) & 0xf
 					if (pres[1] & 0x8) == 0x8:
 						if side_panel_cols == 0:
@@ -557,14 +565,18 @@ class TeletextDecode:
 						c = 0
 					c_end = c + 15
 					t = 1
+
 					while True:
-						self._palette[c] = ((pres[t] >> 2) & 0xf00) | ((pres[t] >> 10) & 0x0f0) | (pres[t+1] & 0x00f)
+						if pres[t] != None and pres[t+1] != None:
+							self._palette[c] = ((pres[t] >> 2) & 0xf00) | ((pres[t] >> 10) & 0x0f0) | (pres[t+1] & 0x00f)
 
 						if c == c_end:
 							break
 
-						self._palette[c+1] = ((pres[t+1] << 4) & 0xf00) | ((pres[t+1] >> 4) & 0x0f0) | ((pres[t+1] >> 12) & 0x00f)
-						self._palette[c+2] = ((pres[t+1] >> 8) & 0x300) | ((pres[t+2] << 10) & 0xc00) | ((pres[t+2] << 2) & 0x0f0) | ((pres[t+2] >> 6) & 0x00f)
+						if pres[t+1] != None and pres[t+2] != None:
+
+							self._palette[c+1] = ((pres[t+1] << 4) & 0xf00) | ((pres[t+1] >> 4) & 0x0f0) | ((pres[t+1] >> 12) & 0x00f)
+							self._palette[c+2] = ((pres[t+1] >> 8) & 0x300) | ((pres[t+2] << 10) & 0xc00) | ((pres[t+2] << 2) & 0x0f0) | ((pres[t+2] >> 6) & 0x00f)
 
 						c += 3
 						t += 2
