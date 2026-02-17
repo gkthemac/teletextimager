@@ -7,7 +7,6 @@ The library depends on the [Python Imaging Library](https://pillow.readthedocs.i
 The library is under development. The internals are subject to change but the `teletextimager` command should work pretty much the same way.
 
 Still to be implemented:
-- Reading t42 files.
 - Incremental and decremental flash within adaptive and passive objects.
 - G0 and G2 characters placed by adaptive and passive objects in character sets other than Latin.
 - Level 3.5 bold and italic text.
