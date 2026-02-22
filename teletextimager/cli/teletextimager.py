@@ -159,7 +159,7 @@ def main():
 					durations = [167, 167, 166, 167, 167, 166]
 
 				for f in render_frames:
-					fl_im.append(my_pil_render.render(my_decoder, border=(24, 20), flash_phase=f))
+					fl_im.append(my_pil_render.render(my_decoder, reveal = not args.conceal, border=(24, 20), flash_phase=f))
 					fl_im[-1] = fl_im[-1].resize((int(fl_im[-1].width * 1.2), fl_im[-1].height), resample = Image.Resampling.NEAREST)
 
 				im.save(outfile_obj, format='gif', save_all=True, append_images=fl_im, transparency=8, disposal=2, duration=durations, loop=0, palette=my_decoder.get_palette())
