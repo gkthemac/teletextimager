@@ -62,6 +62,7 @@ class TeletextDecode:
 			self.attr = TeletextDecode.Attribute()
 			self.frag = TeletextDecode.Frag.NORMALSIZE
 
+	# Getters for character cells
 	def get_char_code(self, r, c):
 		return chr(self.cells[r][c].ch.ch_code)
 
@@ -113,6 +114,7 @@ class TeletextDecode:
 	def get_und_sep(self, r, c):
 		return self.cells[r][c].attr.display.und_sep
 
+	# Getters for whole page properties
 	def get_flash_present(self):
 		return self.flash_present
 
@@ -129,16 +131,32 @@ class TeletextDecode:
 
 	@staticmethod
 	def triplet_split(triplet):
+		'''
+		Splits an 18-bit triplet into address, mode and data parts.
+		Adds 0x20 to mode of column triplets to simplify if'ing.
+		'''
 		t_address = triplet & 0x3f
 		t_mode = (triplet >> 6) & 0x1f
 		t_data = triplet >> 11
-		# Add 0x20 to mode of column triplets to simplify switch'ing
+
 		if t_address < 40:
 			t_mode |= 0x20
 
 		return (t_address, t_mode, t_data)
 
 	class Invocation:
+		'''
+		Parses a list of enhancement triplets and generates a Python dictionary with
+		row and column co-ordinate tuples as keys and a Python list of enhancements to
+		be applied at that cell location as value.
+
+		One instance of this class stores the Local Enhancement Data.
+		Each time an Object is invoked another instance of this class is made which has
+		the enhancements applied by the particular invocation of that Object.
+
+		This class is not used directly; either the Invocation1p5 or Invocation2p5 subclass
+		below is used depending on the decoding level.
+		'''
 		def __init__(self, page, y, d, t, org_r = 0, org_c = 0):
 			self.enhancements = {}
 			self.invokes = []
@@ -207,7 +225,7 @@ class TeletextDecode:
 			if t_address < self.act_c:
 				return
 
-			if t_mode == 0x22 or t_mode >= 0x2f:
+			if t_mode == 0x22 or t_mode >= 0x2f:  # G3 char at Level 1.5 or G0 char with diacritic
 				self.act_c = t_address
 				self.enhancements.setdefault((self.org_r + self.act_r, self.org_c + self.act_c), []).append((t_mode, t_data))
 
@@ -286,6 +304,13 @@ class TeletextDecode:
 		self.right_side_panel = 0
 
 	def find_objects(self, invoc, page, obj_type = 0):
+		'''
+		Find any "Invoke ... Object" triplets within an Invocation.
+
+		This is initally run on the Local Enhancement Data. If an Invoke triplet is found
+		and the Object pointer is valid, this function will recursively call itself to find
+		any sub-Objects invoked within that Object.
+		'''
 		for i in invoc.invokes:
 			org_r, org_c, it_address, it_mode, it_data = i
 			# Check if (sub)Object type can be invoked by Object type we're within
@@ -319,6 +344,10 @@ class TeletextDecode:
 						self.pas_invoc.append(self.Invocation2p5(page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
 
 	def parse_char_enhancements(self, enhances):
+		'''
+		Parses a triplet list for character-based enhancements and returns
+		which character has resulted, if any.
+		'''
 		result = None
 
 		for e in enhances:
@@ -340,6 +369,11 @@ class TeletextDecode:
 		return result
 
 	def parse_attr_enhancements(self, enhances, attr):
+		'''
+		Parses a triplet list for attribute-based enhancements and modifies
+		the supplied attribute parameter. Returns which attributes have been
+		altered, if any.
+		'''
 		changes = set()
 
 		for e in enhances:
@@ -371,6 +405,10 @@ class TeletextDecode:
 		return changes
 
 	def parse_g0g2_enhancements(self, enhances):
+		'''
+		Parses a triplet list for Modified G0 and G2 character set designation.
+		Returns the value of that triplet if it was found.
+		'''
 		for e in enhances:
 			t_mode, t_data = e
 
@@ -380,6 +418,11 @@ class TeletextDecode:
 		return None
 
 	def enlarge_char(self, r, c, covered):
+		'''
+		Looks at the double height and width attributes of a cell and enlarges
+		the character by spreading it into the neighbouring cells.
+		Used when overlaying Adaptive and Passive Objects.
+		'''
 		if r > 22:
 			dheight = False
 		else:
@@ -391,6 +434,7 @@ class TeletextDecode:
 		else:
 			dwidth = self.cells[r][c].attr.display.dwidth
 
+		# Set the fragment of the origin cell
 		if dheight:
 			if dwidth:
 				self.cells[r][c].frag = self.Frag.DS_TOPLEFTQUARTER
@@ -401,6 +445,8 @@ class TeletextDecode:
 		else:
 			self.cells[r][c].frag = self.Frag.NORMALSIZE
 
+		# Now spread the character and its attributes into the neighbouring cells
+		# and take a note of which cells have been covered as a result
 		if self.cells[r][c].frag == self.Frag.DH_TOPHALF:
 			self.cells[r+1][c] = copy.deepcopy(self.cells[r][c])
 			self.cells[r+1][c].frag = self.Frag.DH_BOTTOMHALF
@@ -421,6 +467,10 @@ class TeletextDecode:
 			covered.add((r+1, c+1))
 
 	def rotate_flash(self, flash, c):
+		'''
+		Rotates the flash phase during incremental and decremental flash.
+		Also takes a note of which flash phases have been encountered in the page.
+		'''
 		if flash.fl_mode == 0:
 			return
 
@@ -436,7 +486,6 @@ class TeletextDecode:
 			self.flash_present |= 1
 		elif flash.fl_rate_phase <= 5:
 			self.flash_present |= 2
-
 
 	def decode(self, page, level='3.5', black_foreground=True, double_width=True):
 		self.clear_page()
@@ -489,7 +538,9 @@ class TeletextDecode:
 
 		self.flash_present = 0
 
+		# Holds an instance of the Invocation class made from the Local Enhancement Data
 		local_enh = None
+		# For each type of Object, a list of Invocation instances
 		self.act_invoc = []
 		self.adp_invoc = []
 		self.pas_invoc = []
@@ -507,6 +558,9 @@ class TeletextDecode:
 			allow_black_foreground = True
 			allow_double_width = True
 
+			# Which packet to get page presentation from: either X/28/0 or X/28/4
+			# X/28/4 only valid for Level 3.5
+			# If both are present, X/28/0 takes priority for all except CLUT 0 and 1 palette
 			pres_des = None
 			if (28, 0) in page:
 				pres_des = 0
@@ -584,6 +638,7 @@ class TeletextDecode:
 					c_end = c + 15
 					t = 1
 
+					# This loop is broken when 16 CLUTs have been defined
 					while True:
 						if pres[t] != None and pres[t+1] != None:
 							self._palette[c] = ((pres[t] >> 2) & 0xf00) | ((pres[t] >> 10) & 0x0f0) | (pres[t+1] & 0x00f)
@@ -598,6 +653,7 @@ class TeletextDecode:
 
 						c += 3
 						t += 2
+
 			if (26, 0) in page:
 				local_enh = self.Invocation2p5(page, 26, 0, 0)
 				self.find_objects(local_enh, page)
@@ -618,6 +674,7 @@ class TeletextDecode:
 		second_g0g2_region = None
 		second_g0g2_nos = None
 
+		# Used for covering the bottom half of double height rows
 		l1_dheight_found = False
 		l1_bottom_half = False
 
@@ -644,10 +701,12 @@ class TeletextDecode:
 			g0_char_set = g0_default_char_set
 			g2_char_set = g2_default_char_set
 
+			# Which column incremental or decremental flash was applied so we can
+			# calculate the phase
 			self.flash_origin_c = None
 
 			for c in range(72):
-				# Get any local enhancements and/or active objects at this cell
+				# Get any Local Enhancements and/or Active Objects at this cell
 				enhances = []
 				for inv in self.act_invoc:
 					if (r, c) in inv.enhancements:
@@ -661,13 +720,13 @@ class TeletextDecode:
 					for e in enhances:
 						t_mode, t_data = e
 
-						if t_mode == 0x00 and (t_data & 0x60) == 0x00:
+						if t_mode == 0x00 and (t_data & 0x60) == 0x00:  # Full screen colour
 							self.full_screen = t_data
 							full_row_down = t_data
 							self.full_row[r] = t_data
 							if bbcs:
 								start_attr.background = t_data
-						elif t_mode == 0x01 or (t_mode == 0x07 and r == 0):
+						elif t_mode == 0x01 or (t_mode == 0x07 and r == 0):  # Full row colour or addr row 0
 							self.full_row[r] = t_data & 0x1f
 							if bbcs:
 								start_attr.background = t_data & 0x1f
@@ -702,7 +761,7 @@ class TeletextDecode:
 							current_attr.display.box_win = True
 					elif l1_byte == 0x0c:  # Normal size
 						if current_attr.display.dheight or current_attr.display.dwidth:
-							# Change of size resets hold mosaic character
+							# Change of size resets held mosaic character
 							l1_hold_mosaic_ch = 0x20
 							l1_hold_mosaic_sep = False
 						current_attr.display.dheight = False
@@ -793,6 +852,8 @@ class TeletextDecode:
 					if x26_ch_diacritic != None:
 						self.cells[r][c].ch.ch_diacritic = x26_ch_diacritic
 
+				# Becomes true if this cell is covered by non-origin part of
+				# enlarged character
 				covered = False
 
 				# Check for the left half of a double-width or double-size character
@@ -830,8 +891,9 @@ class TeletextDecode:
 						self.cells[r][c].attr.display.dheight = prev_dheight
 						self.cells[r][c].attr.display.dwidth = prev_dwidth
 
-				# Handle bottom half of a Level 1 double height row,
+				# Handle bottom half of a Level 1 double height row
 				# where the character on the top half is single height
+				# X/26 characters can "punch through" this
 				if (not covered) and l1_bottom_half and x26_character == None:
 					self.cells[r][c] = copy.deepcopy(self.cells[r-1][c])
 					self.cells[r][c].frag = self.Frag.NORMALSIZE
@@ -845,9 +907,11 @@ class TeletextDecode:
 				self.rotate_flash(current_attr.flash, c)
 
 				if not covered:
-					# Cell is NOT covered by enlarged character, so apply the
-					# attributes and adjust the size
+					# Cell is NOT covered by enlarged character, so apply the attributes
 					self.cells[r][c].attr = copy.deepcopy(current_attr)
+					# If this character is the origin of an enlarged character
+					# adjust the size - the other cells of the enlarged character
+					# will be filled in on the next row or column loop
 					if current_attr.display.dheight:
 						if current_attr.display.dwidth:
 							self.cells[r][c].frag = self.Frag.DS_TOPLEFTQUARTER
@@ -863,7 +927,7 @@ class TeletextDecode:
 						l1_fground_col = l1_byte
 						current_attr.foreground = l1_fground_col | fground_map
 						current_attr.display.conceal = False
-						# Switch from mosaics to alpha resets hold mosaic character
+						# Switch from mosaics to alpha resets held mosaic character
 						l1_hold_mosaic_ch = 0x20
 						l1_hold_mosaic_sep = False
 					elif (l1_byte == 0x10 and allow_black_foreground) or (l1_byte >= 0x11 and l1_byte <= 0x17):  # Mosaic and foreground colour
@@ -876,7 +940,7 @@ class TeletextDecode:
 						current_attr.flash.fl_rate_phase = 0
 					elif l1_byte == 0x0d:  # Double height
 						if (not current_attr.display.dheight) or current_attr.display.dwidth:
-							# Change of size resets hold mosaic character
+							# Change of size resets held mosaic character
 							l1_hold_mosaic_ch = 0x20
 							l1_hold_mosaic_sep = False
 						current_attr.display.dheight = True
@@ -884,14 +948,14 @@ class TeletextDecode:
 						l1_dheight_found = True
 					elif l1_byte == 0x0e and allow_double_width:  # Double width
 						if current_attr.display.dheight or (not current_attr.display.dwidth):
-							# Change of size resets hold mosaic character
+							# Change of size resets held mosaic character
 							l1_hold_mosaic_ch = 0x20
 							l1_hold_mosaic_sep = False
 						current_attr.display.dheight = False
 						current_attr.display.dwidth = True
 					elif l1_byte == 0x0f and allow_double_width:  # Double size
 						if (not current_attr.display.dheight) or (not current_attr.display.dwidth):
-							# Change of size resets hold mosaic character
+							# Change of size resets held mosaic character
 							l1_hold_mosaic_ch = 0x20
 							l1_hold_mosaic_sep = False
 						current_attr.display.dheight = True
@@ -912,9 +976,12 @@ class TeletextDecode:
 				l1_bottom_half = True
 				l1_dheight_found = False
 
-		# Overlay adaptive objects
+		# At this point the Level 1 page, Active Objects and the Local Enhancement data
+		# has been fully rendered.
+
+		# Overlay Adaptive Objects
 		for i in self.adp_invoc:
-			# Get columns of leftmost and rightmost enhancements in each row of this object
+			# Get columns of leftmost and rightmost enhancements in each row of this Object
 			col_left = {}
 			col_right = {}
 			for l in i.enhancements.keys():
@@ -922,10 +989,15 @@ class TeletextDecode:
 				if not r in col_left:
 					col_left[r] = c
 				col_right[r] = c
+			# When we place an enlarged character, this will store cells that will be
+			# covered by non-origin parts of all enlarged characters in this Object
 			covered = set()
 			for r in col_left:
+				# Each row in the Object does not influence any attributes to start with
 				adp_attr = self.Attribute()
+				# This will store which attribute types have changed so far in this row
 				changes = set()
+
 				for c in range(col_left[r], col_right[r] + 1):
 					if (r, c) in i.enhancements.keys():
 						changes.update(self.parse_attr_enhancements(i.enhancements[(r, c)], adp_attr))
@@ -934,7 +1006,8 @@ class TeletextDecode:
 						x26_character = None
 					# If an Adaptive Object changes the display attributes,
 					# it can overlap any part of any size underlying character.
-					# Otherwise it can only overlap the non-origin part of enlarged characters.
+					# Otherwise it can only change an enlarged character by overwriting
+					# a character on the origin cell only
 					if 0x2c in changes:
 						self.cells[r][c].attr.display = copy.deepcopy(adp_attr.display)
 						if not (r, c) in covered:
@@ -943,21 +1016,24 @@ class TeletextDecode:
 						covered.add((r, c))
 
 					if not (r, c) in covered:
+						# Apply attributes that the Object has changed in this row so far
 						any_change = False
-						if 0x20 in changes:
+						if 0x20 in changes:  # Foreground colour
 							self.cells[r][c].attr.foreground = adp_attr.foreground
 							any_change = True
-						if 0x23 in changes:
+						if 0x23 in changes:  # Background colour
 							self.cells[r][c].attr.background = adp_attr.background
 							any_change = True
-						if 0x27 in changes:
+						if 0x27 in changes:  # Additional flash functions
 							self.rotate_flash(adp_attr.flash, c)
 							self.cells[r][c].attr.flash = copy.deepcopy(adp_attr.flash)
 							any_change = True
 						if any_change:
+							# Spread attributes to neighbouring cells of enlarged character
 							self.enlarge_char(r, c, covered)
 
 					if x26_character != None and not (r, c) in covered:
+						# Now overwrite the character
 						x26_ch_code, x26_ch_set, x26_ch_diacritic = x26_character
 						if x26_ch_set == 2:
 							x26_ch_set = g2_default_char_set
@@ -973,10 +1049,12 @@ class TeletextDecode:
 
 				del adp_attr
 
-		# Overlay passive objects
+		# Overlay Passive Objects
 		for i in self.pas_invoc:
+			# When we place an enlarged character, this will store cells that will be
+			# covered by non-origin parts of all enlarged characters in this Object
 			covered = set()
-			# Passive objects always start with default attributes
+			# Passive Objects always start with default attributes
 			pas_attr = self.Attribute()
 			for l, e in i.enhancements.items():
 				self.parse_attr_enhancements(e, pas_attr)
@@ -988,6 +1066,8 @@ class TeletextDecode:
 					elif x26_ch_set == 24 and pas_attr.display.und_sep:
 						x26_ch_set = 25
 					r, c = l
+					# Attributes in a Passive Object are always parsed but are only
+					# applied to cells where the Object places a character
 					self.rotate_flash(pas_attr.flash, c)
 					self.cells[r][c].attr = copy.deepcopy(pas_attr)
 					self.cells[r][c].ch.ch_code = x26_ch_code
@@ -1001,6 +1081,11 @@ class TeletextDecode:
 			del pas_attr
 
 	def transparent(self, r, c):
+		'''
+		Find which colour of a cell that results from CLUT 1:0 "transparent"
+		using the logic table in C.1 of the ETSI spec.
+		Returns either the colour index, or 8 if video will show through.
+		'''
 		transparent_page = (self.status_bits & 0x03) != 0x00
 
 		if self.cells[r][c].attr.display.box_win != transparent_page:
