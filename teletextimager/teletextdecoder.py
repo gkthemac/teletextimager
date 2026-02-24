@@ -420,6 +420,24 @@ class TeletextDecode:
 			covered.add((r+1, c))
 			covered.add((r+1, c+1))
 
+	def rotate_flash(self, flash, c):
+		if flash.fl_mode == 0:
+			return
+
+		if flash.fl_rate_phase == 4 or flash.fl_rate_phase == 5:
+			if flash.fl_phase_shown == 0:
+				self.flash_origin_c = c
+			if flash.fl_rate_phase == 4:
+				flash.fl_phase_shown = ((c - self.flash_origin_c) % 3) + 1
+			else:  # elif flash.fl_rate_phase == 5:
+				flash.fl_phase_shown = 3 - ((c + 2 - self.flash_origin_c) % 3)
+
+		if flash.fl_rate_phase == 0:
+			self.flash_present |= 1
+		elif flash.fl_rate_phase <= 5:
+			self.flash_present |= 2
+
+
 	def decode(self, page, level='3.5', black_foreground=True, double_width=True):
 		self.clear_page()
 
@@ -626,6 +644,8 @@ class TeletextDecode:
 			g0_char_set = g0_default_char_set
 			g2_char_set = g2_default_char_set
 
+			self.flash_origin_c = None
+
 			for c in range(72):
 				# Get any local enhancements and/or active objects at this cell
 				enhances = []
@@ -822,20 +842,7 @@ class TeletextDecode:
 					self.cells[r][c].ch.ch_diacritic = 0
 					covered = True
 
-				if current_attr.flash.fl_mode != 0:
-					# Rotate incremental/decremental flash
-					if current_attr.flash.fl_rate_phase == 4 or current_attr.flash.fl_rate_phase == 5:
-						if current_attr.flash.fl_phase_shown == 0:
-							flash_origin_c = c
-						if current_attr.flash.fl_rate_phase == 4:
-							current_attr.flash.fl_phase_shown = ((c - flash_origin_c) % 3) + 1
-						else:  # elif current_attr.flash.fl_rate_phase == 5:
-							current_attr.flash.fl_phase_shown = 3 - ((c + 2 - flash_origin_c) % 3)
-
-					if current_attr.flash.fl_rate_phase == 0:
-						self.flash_present |= 1
-					elif current_attr.flash.fl_rate_phase <= 5:
-						self.flash_present |= 2
+				self.rotate_flash(current_attr.flash, c)
 
 				if not covered:
 					# Cell is NOT covered by enlarged character, so apply the
@@ -944,6 +951,7 @@ class TeletextDecode:
 							self.cells[r][c].attr.background = adp_attr.background
 							any_change = True
 						if 0x27 in changes:
+							self.rotate_flash(adp_attr.flash, c)
 							self.cells[r][c].attr.flash = copy.deepcopy(adp_attr.flash)
 							any_change = True
 						if any_change:
@@ -980,6 +988,7 @@ class TeletextDecode:
 					elif x26_ch_set == 24 and pas_attr.display.und_sep:
 						x26_ch_set = 25
 					r, c = l
+					self.rotate_flash(pas_attr.flash, c)
 					self.cells[r][c].attr = copy.deepcopy(pas_attr)
 					self.cells[r][c].ch.ch_code = x26_ch_code
 					self.cells[r][c].ch.ch_set = x26_ch_set
