@@ -64,7 +64,7 @@ class TeletextDecode:
 
 	# Getters for character cells
 	def get_char_code(self, r, c):
-		return chr(self.cells[r][c].ch.ch_code)
+		return self.cells[r][c].ch.ch_code
 
 	def get_char_set(self, r, c):
 		return self.cells[r][c].ch.ch_set

@@ -91,7 +91,7 @@ class TeletextRenderPIL:
 					origin_x = border_lr + dc * font_width
 
 				if decoder.get_conceal(r, c) and not reveal:
-					char_code = ' '
+					char_code = 0x20
 					char_set = 0
 					char_diacritic = 0
 				else:
@@ -131,7 +131,7 @@ class TeletextRenderPIL:
 				# - the character has a G0 diacritical mark added
 				char_im = None
 
-				diacritic_reduce = char_diacritic != 0 and ord(char_code) >= 0x41 and ord(char_code) <= 0x5a
+				diacritic_reduce = char_diacritic != 0 and char_code >= 0x41 and char_code <= 0x5a
 				# Capital letter with G0 diacritical mark has a reduced height
 				if diacritic_reduce:
 					load_font(27)
@@ -144,7 +144,7 @@ class TeletextRenderPIL:
 					if diacritic_reduce:
 						char_set = 27
 					if char_code != 0x00:
-						char_im_draw.text((0, 0), char_code, foreground, font=self.tt_font[char_set])
+						char_im_draw.text((0, 0), chr(char_code), foreground, font=self.tt_font[char_set])
 					if char_diacritic != 0:
 						# Diacritical marks come from the G2 Latin set
 						load_font(7)
@@ -154,7 +154,7 @@ class TeletextRenderPIL:
 					# Draw cell rectangle in background colour and put the foreground character on top
 					im_draw.rectangle([origin_x, origin_y, origin_x + font_width - 1, origin_y + font_height - 1], background)
 					if char_code != 0x00:
-						im_draw.text((origin_x, origin_y), char_code, fill=foreground, font=self.tt_font[char_set])
+						im_draw.text((origin_x, origin_y), chr(char_code), fill=foreground, font=self.tt_font[char_set])
 						if decoder.get_und_sep(r, c) and char_set < 24:
 							im_draw.rectangle([origin_x, origin_y + font_height - 2, origin_x + font_width - 1, origin_y + font_height - 1], foreground)
 				else:
