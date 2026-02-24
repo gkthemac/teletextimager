@@ -124,6 +124,8 @@ class TeletextRenderPIL:
 				# Character 0x00 draws space without underline
 				if (decoder.get_flash_mode(r, c) == 1 or decoder.get_flash_mode(r, c) == 2) and not flash_phon:
 					char_code = 0x00
+					char_set = 0
+					char_diacritic = 0
 
 				# This becomes a character-size image if we can't draw the text directly.
 				# This applies if...
