@@ -30,9 +30,13 @@ Filename of input teletext page, required parameter.
 `-o, --outfile=OUTFILE`\
 Filename of output image. The filename must end with a file extension of a format that the Python Imaging Library supports writing to. `png` or `gif` is recommended, the latter will be animated if flashing attributes are present in the page.
 
-To write a separate image for each subpage include `%s` in the filename, this will be replaced with the four-digit subpage number in each image filename.
-
 If this parameter is omitted [Image.show()](https://pillow.readthedocs.io/en/stable/reference/Image.html#PIL.Image.Image.show) is called, if running this on a desktop environment it should show the image in a viewer. The image will *not* be saved but the viewer may offer its own way to save the image itself.
+
+The following template substitutions can be used in the output filename:
+- `%p` is replaced with the three-digit page number, or `000` if no page number was found in the input file.
+- `%s` is replaced with the four-digit subpage number, or `0000` if no subpage number was found in the input file.
+
+	Using `%s` will write a separate image for each subpage if more than one subpage is present in the input file.
 
 `-s, --subpage=SUBPAGE`\
 Select one subpage within the TTI file to be rendered. Defaults to 1 which is the first subpage, or all subpages written to separate image files if `%s` is included in the output filename.

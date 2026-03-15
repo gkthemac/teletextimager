@@ -89,6 +89,7 @@ def main():
 		im.show()
 		sys.exit(0)
 
+	percent_p = args.outfile.find('%p') != -1
 	percent_s = args.outfile.find('%s') != -1
 
 	if args.subpage != None and in_ext.lower() != '.t42':
@@ -104,6 +105,12 @@ def main():
 
 	for s in subpage_range:
 		outfile = args.outfile
+
+		if percent_p:
+			if 'number' in my_pages[s]:
+				outfile = outfile.replace('%p', '{:03x}'.format(my_pages[s]['number']))
+			else:
+				outfile = outfile.replace('%p', '000')
 
 		# TODO this just counts the pages instead of reading the actual subcodes
 		if percent_s:
