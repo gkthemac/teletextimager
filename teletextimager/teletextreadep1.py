@@ -103,8 +103,6 @@ class TeletextReadEP1:
 
 				if packet_read != bytes(b'\x20' * 40):
 					cur_page[r] = packet_read
-				else:
-					print('Blank row', r)
 
 			cur_page['subcode'] = subcode
 
