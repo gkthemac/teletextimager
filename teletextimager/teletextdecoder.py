@@ -1096,7 +1096,4 @@ class TeletextDecode:
 		else:
 			row_colour = self.full_row[r]
 
-		if row_colour == 8:
-			return 8
-		else:
-			return row_colour
+		return row_colour
