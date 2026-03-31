@@ -8,7 +8,8 @@ import tempfile
 
 from PIL import Image
 
-from teletextimager import teletextreadep1, teletextreadt42, teletextreadtti, teletextdecoder, teletextrenderpil
+from teletextimager import teletextdecoder, teletextrenderpil
+from teletextimager.reader import *
 
 def main():
 	parser = argparse.ArgumentParser()
@@ -44,11 +45,11 @@ def main():
 	# and select which one to use here based on the file extension
 	in_ext = os.path.splitext(args.infile)[1]
 	if in_ext.lower() == '.tti' or in_ext.lower() == '.ttix':
-		my_reader = teletextreadtti.TeletextReadTTI()
+		my_reader = readtti.TeletextReadTTI()
 	elif in_ext.lower() == '.t42':
-		my_reader = teletextreadt42.TeletextReadT42()
+		my_reader = readt42.TeletextReadT42()
 	elif in_ext.lower() == '.ep1' or in_ext.lower() == '.epx':
-		my_reader = teletextreadep1.TeletextReadEP1()
+		my_reader = readep1.TeletextReadEP1()
 	else:
 		sys.exit('Filename extension \'{0}\' not supported'.format(in_ext))
 

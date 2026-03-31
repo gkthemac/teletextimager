@@ -2,7 +2,7 @@
 
 import copy
 
-from teletextimager import hamming_8_4, hamming_24_18
+from teletextimager.bits import hamming_8_4, hamming_24_18
 
 class TeletextReadT42:
 	def __init__(self):
