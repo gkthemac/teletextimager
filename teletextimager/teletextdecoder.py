@@ -174,9 +174,13 @@ class TeletextDecode:
 				if y < 26:
 					if not y in page:
 						break
-					next_triplet = page[y][t];
+					if t >= len(page[y]):
+						break
+					next_triplet = page[y][t]
 				else:
 					if not (y, d) in page:
+						break
+					if t >= len(page[(y, d)]):
 						break
 					next_triplet = page[(y, d)][t]
 
@@ -519,12 +523,13 @@ class TeletextDecode:
 
 		default_region = page.get('region', 0)
 		default_nos = 0
-		if 12 in page['control_bits']:
-			default_nos |= 1
-		if 13 in page['control_bits']:
-			default_nos |= 2
-		if 14 in page['control_bits']:
-			default_nos |= 4
+		if 'control_bits' in page:
+			if 12 in page['control_bits']:
+				default_nos |= 1
+			if 13 in page['control_bits']:
+				default_nos |= 2
+			if 14 in page['control_bits']:
+				default_nos |= 4
 		second_region = 0xf
 		second_nos = 0x7
 
@@ -741,7 +746,7 @@ class TeletextDecode:
 					current_attr = copy.deepcopy(start_attr)
 					current_attr.background = self.full_row[r]
 
-				if c < 40 and r in page:
+				if c < 40 and r in page and c < len(pkt):
 					l1_byte = pkt[c]
 				else:
 					l1_byte = 0x20
