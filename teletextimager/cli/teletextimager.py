@@ -80,10 +80,14 @@ def main():
 	# This behaviour may not be kept
 	if args.outfile == None:
 		if args.subpage == None:
-			subpage = 1
+			subpage = 0
+		elif args.subpage > len(my_pages):
+			print('Warning: selected subpage {0} not found in input file'.format(args.subpage), file=sys.stderr)
+			subpage = len(my_pages) - 1
 		else:
-			subpage = args.subpage
-		my_decoder.decode(my_pages[subpage - 1], level = level, black_foreground = not args.classic, double_width = not args.classic)
+			subpage = args.subpage - 1
+
+		my_decoder.decode(my_pages[subpage], level = level, black_foreground = not args.classic, double_width = not args.classic)
 		my_pil_render = teletextrenderpil.TeletextRenderPIL()
 		im = my_pil_render.render(my_decoder, reveal = not args.conceal, border=(24, 20))
 		im = im.resize((int(im.width * 1.2), im.height))
