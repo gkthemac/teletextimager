@@ -240,7 +240,7 @@ class TeletextDecode:
 					self.enhancements.setdefault((self.org_r,0), []).append((t_mode, t_data))
 			elif t_mode == 0x01:  # Full row colour
 				new_row = self.address_to_row(t_address)
-				if self.act_r < new_row:
+				if self.act_r < new_row or (self.act_r == new_row and self.act_c == 0):
 					self.act_r = new_row
 					self.act_c = 0
 					if (t_data & 0x60) == 0x00 or (t_data & 0x60) == 0x60:
