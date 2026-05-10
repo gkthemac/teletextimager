@@ -11,6 +11,19 @@ from PIL import Image
 from teletextimager import teletextdecoder, teletextrenderpil
 from teletextimager.reader import *
 
+def reader_from_extension(ext):
+	'''
+	Returns a reader based on the file extension
+	'''
+	if ext.lower() == '.tti' or ext.lower() == '.ttix':
+		return readtti.TeletextReadTTI()
+	elif ext.lower() == '.t42':
+		return readt42.TeletextReadT42()
+	elif ext.lower() == '.ep1' or ext.lower() == '.epx':
+		return readep1.TeletextReadEP1()
+	else:
+		return None
+
 def main():
 	parser = argparse.ArgumentParser()
 
@@ -40,20 +53,12 @@ def main():
 	if args.classic and level != '1':
 		level = '1.5'
 
-	# Create the reader
-	# When we support more formats we'll add more readers to the library
-	# and select which one to use here based on the file extension
 	in_ext = os.path.splitext(args.infile)[1]
-	if in_ext.lower() == '.tti' or in_ext.lower() == '.ttix':
-		my_reader = readtti.TeletextReadTTI()
-	elif in_ext.lower() == '.t42':
-		my_reader = readt42.TeletextReadT42()
-	elif in_ext.lower() == '.ep1' or in_ext.lower() == '.epx':
-		my_reader = readep1.TeletextReadEP1()
-	else:
+	my_reader = reader_from_extension(in_ext)
+	if in_ext == None:
 		sys.exit('Filename extension \'{0}\' not supported'.format(in_ext))
 
-#	stdin disabled as we can't figure out the format without the extension
+#	NOTE stdin disabled as we can't figure out the format without the extension
 #	if args.infile == "-":
 #		my_pages = my_reader.read(sys.stdin)
 #	else:
