@@ -140,7 +140,7 @@ def main():
 			except OSError as e:
 				print('Cannot write output file \'{0}\': error {1} {2}'.format(outfile, e.errno, e.strerror), file=sys.stderr)
 				sys.exit(os.EX_OSFILE)
-			outfile_name = temp_file.name;
+			outfile_name = temp_file.name
 		else:
 			outfile_name = outfile
 		try:
