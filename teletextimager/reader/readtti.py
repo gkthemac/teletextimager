@@ -17,7 +17,7 @@ class TeletextReadTTI:
 		for cur_line in source:
 			if cur_line.startswith('DE,'):
 				cur_page.setdefault('metadata', {})
-				cur_page['metadata']['title'] = cur_line.partition(',')[2]
+				cur_page['metadata']['title'] = cur_line.partition(',')[2].rstrip()
 
 			if cur_line.startswith('PN,'):
 				if not first_pn:
