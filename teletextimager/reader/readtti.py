@@ -15,6 +15,10 @@ class TeletextReadTTI:
 		first_pn = False
 
 		for cur_line in source:
+			if cur_line.startswith('DE,'):
+				cur_page.setdefault('metadata', {})
+				cur_page['metadata']['title'] = cur_line.partition(',')[2]
+
 			if cur_line.startswith('PN,'):
 				if not first_pn:
 					first_pn = True
@@ -52,7 +56,7 @@ class TeletextReadTTI:
 					cur_page['control_bits'].add(14)
 
 			if cur_line.startswith('OL,'):
-				if cur_line[4] == ",":
+				if cur_line[4] == ',':
 					pkt_no = ord(cur_line[3]) - 48
 					line_start = 5
 				else:
@@ -83,6 +87,17 @@ class TeletextReadTTI:
 						triplet = (triplet3 << 12) | (triplet2 << 6) | triplet1
 						triplets.append(triplet)
 					cur_page[(pkt_no, desig_no)] = triplets
+
+			if cur_line.startswith('CT,'):
+				cycle = cur_line.split(',')
+				if len(cycle) == 3 and cycle[1].isdigit():
+					cycle_type = cycle[2].rstrip()
+					if cycle_type == 'C':
+						cur_page.setdefault('metadata', {})
+						cur_page['metadata']['cycle_cycles'] = int(cycle[1])
+					elif cycle_type == 'T':
+						cur_page.setdefault('metadata', {})
+						cur_page['metadata']['cycle_seconds'] = int(cycle[1])
 
 		if source_is_file:
 			source.close()
