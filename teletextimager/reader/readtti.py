@@ -55,6 +55,9 @@ class TeletextReadTTI:
 				if (status_bits & 0x80) == 0x80:
 					cur_page['control_bits'].add(14)
 
+			if cur_line.startswith('RE,'):
+				cur_page['region'] = int(cur_line[3], 16)
+
 			if cur_line.startswith('OL,'):
 				if cur_line[4] == ',':
 					pkt_no = ord(cur_line[3]) - 48
