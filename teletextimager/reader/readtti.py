@@ -91,6 +91,31 @@ class TeletextReadTTI:
 						triplets.append(triplet)
 					cur_page[(pkt_no, desig_no)] = triplets
 
+			if cur_line.startswith('FL,'):
+				links = cur_line.split(',')
+				if len(links) == 7:
+					# Init packet to mostly 0xf's as page xFF:3F7F means no page is specified
+					fl_packet = bytearray([0xf] * 40)
+					fl_packet[0] = 0x0  # Designation code
+					fl_packet[38] = 0x0 # CRC word
+					fl_packet[39] = 0x0 # CRC word
+
+					# Page numbers in FL command reference absolute magazine number
+					# Convert to relative by XORing with page magazine number
+					if 'number' in cur_page:
+						mag_flip = cur_page['number'] & 0x700
+					else:
+						mag_flip = 0
+
+					for i in range(6):
+						link_rel = (int(links[i+1], 16) & 0x7ff) ^ mag_flip
+						fl_packet[i*6+1] = link_rel & 0x00f
+						fl_packet[i*6+2] = (link_rel & 0x0f0) >> 4
+						fl_packet[i*6+4] = 0x7 | ((link_rel & 0x100) >> 5)
+						fl_packet[i*6+6] = 0x3 | ((link_rel & 0x600) >> 7)
+
+					cur_page[(27, 0)] = fl_packet
+
 			if cur_line.startswith('CT,'):
 				cycle = cur_line.split(',')
 				if len(cycle) == 3 and cycle[1].isdigit():
