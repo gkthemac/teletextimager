@@ -1,6 +1,57 @@
 #!/usr/bin/env python3
 
 class TeletextReadTTI:
+	def convert_7bit_packet(self, line_pkt):
+		'''
+		Convert a 7-bit OL line into an array of 40 bytes
+		'''
+		result = bytearray(40)
+		i = 0
+
+		for j in range(40):
+			if i >= len(line_pkt):
+				break
+			this_char = ord(line_pkt[i])
+			if (this_char & 0x80) == 0x80:
+				this_char &= 0x7f
+			elif this_char == 0x10:
+				this_char = 0x0d
+			elif this_char == 0x1b:
+				i += 1
+				this_char = ord(line_pkt[i]) & 0x1f
+			result[j] = this_char
+			i += 1
+
+		return result
+
+	def convert_18bit_packet(self, line_pkt):
+		'''
+		Convert an 18-bit OL line into a list of 13 triplets
+		'''
+		result = []
+
+		for t in range(1, 39, 3):
+			triplet1 = ord(line_pkt[t]) & 0x3f
+			triplet2 = ord(line_pkt[t+1]) & 0x3f
+			triplet3 = ord(line_pkt[t+2]) & 0x3f
+			triplet = (triplet3 << 12) | (triplet2 << 6) | triplet1
+			result.append(triplet)
+
+		return result
+
+	def convert_4bit_packet(self, line_pkt):
+		'''
+		Convert a 4-bit OL line into an array of 40 bytes
+		'''
+		result = bytearray(40)
+
+		for i in range(40):
+			if i >= len(line_pkt):
+				break
+			result[i] = ord(line_pkt[i]) & 0x0f
+
+		return result
+
 	def read(self, source):
 		source_is_file = False
 		if not hasattr(source, 'read'):
@@ -59,37 +110,30 @@ class TeletextReadTTI:
 				cur_page['region'] = int(cur_line[3], 16)
 
 			if cur_line.startswith('OL,'):
+				# Fiddly way of extracting the line number as an integer
 				if cur_line[4] == ',':
 					pkt_no = ord(cur_line[3]) - 48
-					line_start = 5
+					line_pkt = cur_line[5:]
 				else:
 					pkt_no = (ord(cur_line[3]) - 48) * 10 + ord(cur_line[4]) - 48
-					line_start = 6
-				if pkt_no >= 0 and pkt_no <= 25:
-					pkt = bytearray(40)
-					i = line_start
-					for j in range(40):
-						if i >= len(cur_line):
-							break
-						this_char = ord(cur_line[i])
-						if this_char == 0x10:
-							this_char = 0x0d
-						elif this_char == 0x1b:
-							i += 1
-							this_char = ord(cur_line[i]) - 0x40
-						pkt[j] = this_char
-						i += 1
-					cur_page[pkt_no] = bytes(pkt)
-				elif pkt_no >= 26 and pkt_no <= 28:
-					triplets = []
-					desig_no = ord(cur_line[line_start]) - 64
-					for t in range(line_start + 1, line_start + 39, 3):
-						triplet1 = ord(cur_line[t]) & 0x3f
-						triplet2 = ord(cur_line[t+1]) & 0x3f
-						triplet3 = ord(cur_line[t+2]) & 0x3f
-						triplet = (triplet3 << 12) | (triplet2 << 6) | triplet1
-						triplets.append(triplet)
-					cur_page[(pkt_no, desig_no)] = triplets
+					line_pkt = cur_line[6:]
+
+				desig_no = None
+
+				if pkt_no >= 26 and pkt_no <= 29:
+					desig_no = ord(line_pkt[0]) & 0xf
+					if pkt_no == 27 and desig_no < 4:
+						convert_packet = self.convert_4bit_packet
+					else:
+						convert_packet = self.convert_18bit_packet
+				elif pkt_no >= 0 and pkt_no <= 25:
+					# TODO deal with packet encodings
+					convert_packet = self.convert_7bit_packet
+
+				if desig_no == None:
+					cur_page[pkt_no] = convert_packet(line_pkt)
+				else:
+					cur_page[(pkt_no, desig_no)] = convert_packet(line_pkt)
 
 			if cur_line.startswith('FL,'):
 				links = cur_line.split(',')
