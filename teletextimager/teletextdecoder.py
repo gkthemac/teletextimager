@@ -491,7 +491,7 @@ class TeletextDecode:
 		elif flash.fl_rate_phase <= 5:
 			self.flash_present |= 2
 
-	def decode(self, page, level='3.5', black_foreground=True, double_width=True):
+	def decode(self, page, level='2.5', black_foreground=True, double_width=True):
 		self.clear_page()
 
 		# When given a character set Region and NOS, these dictionaries are used
