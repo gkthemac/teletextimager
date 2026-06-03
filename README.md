@@ -55,3 +55,9 @@ Do not render the header row.
 
 `--no-flof`\
 Do not render row 24. This row usually has Fastext links.
+
+`--gdrcs=GDRCSFILE`\
+Filename of teletext page with PTUs to be used for Global DRCS character definitions.
+
+`--ndrcs=NDRCSFILE`\
+Filename of teletext page with PTUs to be used for Normal DRCS character definitions.

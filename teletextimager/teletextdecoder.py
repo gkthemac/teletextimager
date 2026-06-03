@@ -3,11 +3,15 @@
 import copy
 from enum import Enum
 
+from teletextimager import teletextdrcs
+
 class TeletextDecode:
 	def __init__(self):
 		self.level = 3
 		self.status_bits = 0
 		self.cells = [[self.Cell() for c in range(72)] for r in range(25)]
+		self.gdrcs_bitmap = {}
+		self.ndrcs_bitmap = {}
 #		self.clear_page()
 
 	class Frag(Enum):
@@ -56,9 +60,21 @@ class TeletextDecode:
 			self.ch_set = 0
 			self.ch_diacritic = 0
 
+	class DRCSType(Enum):
+		DRCS_GLOBAL = 0
+		DRCS_NORMAL = 1
+
+	class CellDRCS:
+		def __init__(self):
+			self.drcs_ptu = None
+			self.drcs_type = None
+			self.drcs_subtable = None
+			self.drcs_mode = None
+
 	class Cell:
 		def __init__(self):
 			self.ch = TeletextDecode.CellChar()
+			self.drcs = TeletextDecode.CellDRCS()
 			self.attr = TeletextDecode.Attribute()
 			self.frag = TeletextDecode.Frag.NORMALSIZE
 
@@ -71,6 +87,27 @@ class TeletextDecode:
 
 	def get_char_diacritic(self, r, c):
 		return self.cells[r][c].ch.ch_diacritic
+
+	def get_drcs_ptu(self, r, c):
+		return self.cells[r][c].drcs.drcs_ptu
+
+	def get_drcs_type(self, r, c):
+		return self.cells[r][c].drcs.drcs_type
+
+	def get_drcs_subtable(self, r, c):
+		return self.cells[r][c].drcs.drcs_subtable
+
+	def get_drcs_mode(self, r, c):
+		return self.cells[r][c].drcs.drcs_mode
+
+	def get_drcs_bitmap(self, r, c):
+		if self.cells[r][c].drcs.drcs_ptu == None:
+			return None
+		else:
+			if self.cells[r][c].drcs.drcs_type == self.DRCSType.DRCS_GLOBAL:
+				return self.gdrcs_bitmap[(self.cells[r][c].drcs.drcs_ptu, self.cells[r][c].drcs.drcs_subtable)]
+			else:
+				return self.ndrcs_bitmap[(self.cells[r][c].drcs.drcs_ptu, self.cells[r][c].drcs.drcs_subtable)]
 
 	def get_foreground(self, r, c):
 		result = self.cells[r][c].attr.foreground
@@ -129,6 +166,18 @@ class TeletextDecode:
 			result.append((b << 4) | b)
 		return result
 
+	def get_dclut(self, drcs_mode, drcs_type):
+		if drcs_mode == 1:
+			if drcs_type == self.DRCSType.DRCS_GLOBAL:
+				return copy.deepcopy(self.gdrcs_dclut4)
+			else:
+				return copy.deepcopy(self.ndrcs_dclut4)
+		else:  # elif drcs_mode == 2 or drcs_mode == 3:
+			if drcs_type == self.DRCSType.DRCS_GLOBAL:
+				return copy.deepcopy(self.gdrcs_dclut16)
+			else:
+				return copy.deepcopy(self.ndrcs_dclut16)
+
 	@staticmethod
 	def triplet_split(triplet):
 		'''
@@ -167,6 +216,11 @@ class TeletextDecode:
 			self.act_c = 0
 			self.org_mod_r = 0
 			self.org_mod_c = 0
+
+			# Tracking DRCS Mode row triplets
+			# Both default to subtable 0, valid at Levels 2.5 and 3.5
+			self.gdrcs_mode = 0x30
+			self.ndrcs_mode = 0x30
 
 			first_triplet = True
 
@@ -265,6 +319,11 @@ class TeletextDecode:
 			elif t_mode == 0x11 or t_mode == 0x12 or t_mode == 0x13:
 				self.enhancements.setdefault((self.org_r + self.org_mod_r + self.act_r, self.org_c + self.org_mod_c + self.act_c), []).append((t_mode, t_data))
 				self.invokes.append((self.org_r + self.org_mod_r + self.act_r, self.org_c + self.org_mod_c + self.act_c, t_address, t_mode, t_data))
+			elif t_mode == 0x18:  # DRCS Mode
+				if (t_data & 0x40) == 0x40:
+					self.ndrcs_mode = t_data & 0x3f
+				else:
+					self.gdrcs_mode = t_data & 0x3f
 			# All "row triplet" modes now accounted for
 			# All column triplets set the Active Position column apart from the
 			# reserved and PDC values, so exit the entire function here if they
@@ -286,6 +345,13 @@ class TeletextDecode:
 
 			self.act_c = t_address
 
+			# For DRCS characters, add the tracked DRCS Mode to the upper bits of data
+			if t_mode == 0x2d:  # DRCS character
+				if (t_data & 0x40) == 0x40:
+					t_data |= self.ndrcs_mode << 7
+				else:
+					t_data |= self.gdrcs_mode << 7
+
 			self.enhancements.setdefault((self.org_r + self.act_r, self.org_c + self.act_c), []).append((t_mode, t_data))
 
 	def clear_page(self):
@@ -294,6 +360,10 @@ class TeletextDecode:
 				self.cells[r][c].ch.ch_code = 0x20
 				self.cells[r][c].ch.ch_set = 0
 				self.cells[r][c].ch.ch_diacritic = 0
+				self.cells[r][c].drcs_ptu = None
+				self.cells[r][c].drcs_type = None
+				self.cells[r][c].drcs_subtable = None
+				self.cells[r][c].drcs_mode = None
 				self.cells[r][c].attr = self.Attribute()
 				self.cells[r][c].frag = self.Frag.NORMALSIZE
 		self._palette = [
@@ -306,6 +376,14 @@ class TeletextDecode:
 		self.full_row = [0] * 25
 		self.left_side_panel = 0
 		self.right_side_panel = 0
+
+		self.gdrcs_bitmap = {}
+		self.ndrcs_bitmap = {}
+
+		self.gdrcs_dclut4 = list(range(4))
+		self.ndrcs_dclut4 = list(range(4))
+		self.gdrcs_dclut16 = list(range(16))
+		self.ndrcs_dclut16 = list(range(16))
 
 	def find_objects(self, invoc, page, obj_type = 0):
 		'''
@@ -369,6 +447,26 @@ class TeletextDecode:
 				result = (t_data, 2, None)
 			elif t_mode >= 0x30:  # G0 diacritic
 				result = (t_data, 0, t_mode - 0x30)
+
+		return result
+
+	def parse_drcs_enhancements(self, enhances):
+		'''
+		Parses a triplet list for DRCS enhancements and returns
+		which character has resulted, if any.
+		'''
+		result = None
+
+		for e in enhances:
+			t_mode, t_data = e
+
+			if t_mode == 0x2d:  # DRCS character
+				if (t_data & 0x40) == 0x40:
+					drcs_type = self.DRCSType.DRCS_NORMAL
+				else:
+					drcs_type = self.DRCSType.DRCS_GLOBAL
+				# TODO return "required at Levels"
+				result = drcs_type, t_data & 0x3f, (t_data >> 7) & 0x0f
 
 		return result
 
@@ -491,7 +589,37 @@ class TeletextDecode:
 		elif flash.fl_rate_phase <= 5:
 			self.flash_present |= 2
 
-	def decode(self, page, level='2.5', black_foreground=True, double_width=True):
+	@staticmethod
+	def x281_entry(pkt, e):
+		'''
+		Extract 5 bits from a packet of 13 triplets of 18 bits each
+		Used for getting Level 3.5 DCLUTs from X/28/1
+		'''
+		t = e // 18 * 5 + 1
+		m = e % 18
+
+		if m == 0:
+			return pkt[t] & 0x1f
+		if m <= 2:
+			return (pkt[t] >> m * 5) & 0x1f
+		if m == 3:
+			return ((pkt[t] >> 15) & 0x07) | ((pkt[t+1] << 3) & 0x18)
+		if m <= 6:
+			return (pkt[t+1] >> (m * 5 - 18)) & 0x1f
+		if m == 7:
+			return ((pkt[t+1] >> 17) & 0x01) | ((pkt[t+2] << 1) & 0x1e)
+		if m <= 9:
+			return (pkt[t+2] >> (m * 5 - 36)) & 0x1f
+		if m == 10:
+			return ((pkt[t+2] >> 14) & 0x0f) | ((pkt[t+3] << 4) & 0x10)
+		if m <= 13:
+			return (pkt[t+3] >> (m * 5 - 54)) & 0x1f
+		if m == 14:
+			return ((pkt[t+3] >> 16) & 0x03) | ((pkt[t+4] << 2) & 0x1c)
+
+		return (pkt[t+4] >> (m * 5 - 72)) & 0x1f
+
+	def decode(self, page, level='2.5', black_foreground=True, double_width=True, gdrcs_page=None, ndrcs_page=None):
 		self.clear_page()
 
 		# When given a character set Region and NOS, these dictionaries are used
@@ -562,6 +690,20 @@ class TeletextDecode:
 		if self.level >= 2:
 			allow_black_foreground = True
 			allow_double_width = True
+
+			gdrcs_decoder = teletextdrcs.TeletextDRCSDecode()
+			gdrcs_decoder.set_page(gdrcs_page)
+			ndrcs_decoder = teletextdrcs.TeletextDRCSDecode()
+			ndrcs_decoder.set_page(ndrcs_page)
+
+			if self.level == 3 and (28, 1) in page:
+				for i in range(16):
+					self.gdrcs_dclut16[i] = self.x281_entry(page[(28, 1)], 8 + i)
+					self.ndrcs_dclut16[i] = self.x281_entry(page[(28, 1)], 24 + i)
+					if i > 3:
+						continue
+					self.gdrcs_dclut4[i] = self.x281_entry(page[(28, 1)], i)
+					self.ndrcs_dclut4[i] = self.x281_entry(page[(28, 1)], 4 + i)
 
 			# Which packet to get page presentation from: either X/28/0 or X/28/4
 			# X/28/4 only valid for Level 3.5
@@ -857,6 +999,27 @@ class TeletextDecode:
 					if x26_ch_diacritic != None:
 						self.cells[r][c].ch.ch_diacritic = x26_ch_diacritic
 
+				# DRCS character
+				drcs_character = self.parse_drcs_enhancements(enhances)
+				if drcs_character != None:
+					drcs_type, drcs_ptu, drcs_subtable = drcs_character
+					self.cells[r][c].drcs.drcs_ptu = drcs_ptu
+					self.cells[r][c].drcs.drcs_type = drcs_type
+					self.cells[r][c].drcs.drcs_subtable = drcs_subtable
+					if self.level == 2:
+						if drcs_type == self.DRCSType.DRCS_GLOBAL:
+							self.gdrcs_bitmap[(drcs_ptu, drcs_subtable)] = gdrcs_decoder.ptu_l2p5(drcs_ptu, drcs_subtable)
+						else:
+							self.ndrcs_bitmap[(drcs_ptu, drcs_subtable)] = ndrcs_decoder.ptu_l2p5(drcs_ptu, drcs_subtable)
+						self.cells[r][c].drcs.drcs_mode = 0
+					else:  # elif self.level == 3:
+						if drcs_type == self.DRCSType.DRCS_GLOBAL:
+							self.gdrcs_bitmap[(drcs_ptu, drcs_subtable)] = gdrcs_decoder.ptu_l3p5(drcs_ptu, drcs_subtable)
+							self.cells[r][c].drcs.drcs_mode = gdrcs_decoder.ptu_mode(drcs_ptu, drcs_subtable)
+						else:
+							self.ndrcs_bitmap[(drcs_ptu, drcs_subtable)] = ndrcs_decoder.ptu_l3p5(drcs_ptu, drcs_subtable)
+							self.cells[r][c].drcs.drcs_mode = ndrcs_decoder.ptu_mode(drcs_ptu, drcs_subtable)
+
 				# Becomes true if this cell is covered by non-origin part of
 				# enlarged character
 				covered = False
@@ -907,6 +1070,10 @@ class TeletextDecode:
 					self.cells[r][c].ch.ch_code = 0x20
 					self.cells[r][c].ch.ch_set = 0
 					self.cells[r][c].ch.ch_diacritic = 0
+					self.cells[r][c].drcs.drcs_ptu = None
+					self.cells[r][c].drcs.drcs_type = None
+					self.cells[r][c].drcs.drcs_subtable = None
+					self.cells[r][c].drcs.drcs_mode = None
 					covered = True
 
 				self.rotate_flash(current_attr.flash, c)
@@ -1007,8 +1174,10 @@ class TeletextDecode:
 					if (r, c) in i.enhancements.keys():
 						changes.update(self.parse_attr_enhancements(i.enhancements[(r, c)], adp_attr))
 						x26_character = self.parse_char_enhancements(i.enhancements[(r, c)])
+						drcs_character = self.parse_drcs_enhancements(i.enhancements[(r, c)])
 					else:
 						x26_character = None
+						drcs_character = None
 					# If an Adaptive Object changes the display attributes,
 					# it can overlap any part of any size underlying character.
 					# Otherwise it can only change an enlarged character by overwriting
@@ -1037,8 +1206,8 @@ class TeletextDecode:
 							# Spread attributes to neighbouring cells of enlarged character
 							self.enlarge_char(r, c, covered)
 
+					# Now overwrite the character
 					if x26_character != None and not (r, c) in covered:
-						# Now overwrite the character
 						x26_ch_code, x26_ch_set, x26_ch_diacritic = x26_character
 						if x26_ch_set == 2:
 							x26_ch_set = g2_default_char_set
@@ -1050,6 +1219,26 @@ class TeletextDecode:
 							self.cells[r][c].ch.ch_diacritic = x26_ch_diacritic
 						else:
 							self.cells[r][c].ch_ch_diacritic = 0
+						self.enlarge_char(r, c, covered)
+
+					if drcs_character != None and not (r, c) in covered:
+						drcs_type, drcs_ptu, drcs_subtable = drcs_character
+						self.cells[r][c].drcs.drcs_ptu = drcs_ptu
+						self.cells[r][c].drcs.drcs_type = drcs_type
+						self.cells[r][c].drcs.drcs_subtable = drcs_subtable
+						if self.level == 2:
+							if drcs_type == self.DRCSType.DRCS_GLOBAL:
+								self.gdrcs_bitmap[(drcs_ptu, drcs_subtable)] = gdrcs_decoder.ptu_l2p5(drcs_ptu, drcs_subtable)
+							else:
+								self.ndrcs_bitmap[(drcs_ptu, drcs_subtable)] = ndrcs_decoder.ptu_l2p5(drcs_ptu, drcs_subtable)
+							self.cells[r][c].drcs.drcs_mode = 0
+						else:  # elif self.level == 3:
+							if drcs_type == self.DRCSType.DRCS_GLOBAL:
+								self.gdrcs_bitmap[(drcs_ptu, drcs_subtable)] = gdrcs_decoder.ptu_l3p5(drcs_ptu, drcs_subtable)
+								self.cells[r][c].drcs.drcs_mode = gdrcs_decoder.ptu_mode(drcs_ptu, drcs_subtable)
+							else:
+								self.ndrcs_bitmap[(drcs_ptu, drcs_subtable)] = ndrcs_decoder.ptu_l3p5(drcs_ptu, drcs_subtable)
+								self.cells[r][c].drcs.drcs_mode = ndrcs_decoder.ptu_mode(drcs_ptu, drcs_subtable)
 						self.enlarge_char(r, c, covered)
 
 				del adp_attr
@@ -1064,23 +1253,51 @@ class TeletextDecode:
 			for l, e in i.enhancements.items():
 				self.parse_attr_enhancements(e, pas_attr)
 				x26_character = self.parse_char_enhancements(e)
+				drcs_character = self.parse_drcs_enhancements(e)
+
+				char_placed = False
+
 				if x26_character != None and not l in covered:
+					char_placed = True
+					r, c = l
 					x26_ch_code, x26_ch_set, x26_ch_diacritic = x26_character
 					if x26_ch_set == 2:
 						x26_ch_set = g2_default_char_set
 					elif x26_ch_set == 24 and pas_attr.display.und_sep:
 						x26_ch_set = 25
-					r, c = l
-					# Attributes in a Passive Object are always parsed but are only
-					# applied to cells where the Object places a character
-					self.rotate_flash(pas_attr.flash, c)
-					self.cells[r][c].attr = copy.deepcopy(pas_attr)
 					self.cells[r][c].ch.ch_code = x26_ch_code
 					self.cells[r][c].ch.ch_set = x26_ch_set
 					if x26_ch_diacritic != None:
 						self.cells[r][c].ch.ch_diacritic = x26_ch_diacritic
 					else:
 						self.cells[r][c].ch_ch_diacritic = 0
+
+				if drcs_character != None and not l in covered:
+					char_placed = True
+					r, c = l
+					drcs_type, drcs_ptu, drcs_subtable = drcs_character
+					self.cells[r][c].drcs.drcs_ptu = drcs_ptu
+					self.cells[r][c].drcs.drcs_type = drcs_type
+					self.cells[r][c].drcs.drcs_subtable = drcs_subtable
+					if self.level == 2:
+						if drcs_type == self.DRCSType.DRCS_GLOBAL:
+							self.gdrcs_bitmap[(drcs_ptu, drcs_subtable)] = gdrcs_decoder.ptu_l2p5(drcs_ptu, drcs_subtable)
+						else:
+							self.ndrcs_bitmap[(drcs_ptu, drcs_subtable)] = ndrcs_decoder.ptu_l2p5(drcs_ptu, drcs_subtable)
+						self.cells[r][c].drcs.drcs_mode = 0
+					else:  # elif self.level == 3:
+						if drcs_type == self.DRCSType.DRCS_GLOBAL:
+							self.gdrcs_bitmap[(drcs_ptu, drcs_subtable)] = gdrcs_decoder.ptu_l3p5(drcs_ptu, drcs_subtable)
+							self.cells[r][c].drcs.drcs_mode = gdrcs_decoder.ptu_mode(drcs_ptu, drcs_subtable)
+						else:
+							self.ndrcs_bitmap[(drcs_ptu, drcs_subtable)] = ndrcs_decoder.ptu_l3p5(drcs_ptu, drcs_subtable)
+							self.cells[r][c].drcs.drcs_mode = ndrcs_decoder.ptu_mode(drcs_ptu, drcs_subtable)
+
+				# Attributes in a Passive Object are always parsed but are only
+				# applied to cells where the Object places a character
+				if char_placed:
+					self.rotate_flash(pas_attr.flash, c)
+					self.cells[r][c].attr = copy.deepcopy(pas_attr)
 					self.enlarge_char(r, c, covered)
 
 			del pas_attr

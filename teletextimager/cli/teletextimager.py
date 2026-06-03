@@ -38,6 +38,8 @@ def main():
 	parser.add_argument('-s', '--subpage', type=int, help='select subpage in TTI file')
 	parser.add_argument('-l', '--level', default='2.5', type=level_valid, help='set decoding level')
 	parser.add_argument('-c', '--classic', action='store_true', help='disable black foreground and double width')
+	parser.add_argument('--gdrcs', metavar='GDRCSFILE', help='global DRCS page filename')
+	parser.add_argument('--ndrcs', metavar='NDRCSFILE', help='normal DRCS page filename')
 	parser.add_argument('--conceal', action='store_true', help='hide concealed text')
 	parser.add_argument('--no-header', action='store_true', help='remove header row')
 	parser.add_argument('--no-flof', action='store_true', help='remove row 24')
@@ -76,6 +78,26 @@ def main():
 		for s in my_pages:
 			s.pop(24)
 
+	if args.gdrcs:
+		gdrcs_ext = os.path.splitext(args.gdrcs)[1]
+		gdrcs_reader = reader_from_extension(gdrcs_ext)
+		if gdrcs_ext == None:
+			sys.exit('Filename extension \'{0}\' not supported'.format(gdrcs_ext))
+
+		gdrcs_page = gdrcs_reader.read(args.gdrcs)
+	else:
+		gdrcs_page = None
+
+	if args.ndrcs:
+		ndrcs_ext = os.path.splitext(args.ndrcs)[1]
+		ndrcs_reader = reader_from_extension(ndrcs_ext)
+		if ndrcs_ext == None:
+			sys.exit('Filename extension \'{0}\' not supported'.format(ndrcs_ext))
+
+		ndrcs_page = ndrcs_reader.read(args.ndrcs)
+	else:
+		ndrcs_page = None
+
 	my_decoder = teletextdecoder.TeletextDecode()
 
 	if args.subpage != None and in_ext.lower() == '.t42':
@@ -92,7 +114,7 @@ def main():
 		else:
 			subpage = args.subpage - 1
 
-		my_decoder.decode(my_pages[subpage], level = level, black_foreground = not args.classic, double_width = not args.classic)
+		my_decoder.decode(my_pages[subpage], level = level, black_foreground = not args.classic, double_width = not args.classic, gdrcs_page = gdrcs_page, ndrcs_page = ndrcs_page)
 		my_pil_render = teletextrenderpil.TeletextRenderPIL()
 		im = my_pil_render.render(my_decoder, reveal = not args.conceal, border=(24, 20))
 		im = im.resize((int(im.width * 1.2), im.height))
@@ -151,7 +173,7 @@ def main():
 
 		# Pass the subpage packets to the decoder object which will hold the results
 		# as an agnostic grid of characters, colours, enlarged fragments etc
-		my_decoder.decode(my_pages[s], level = level, black_foreground = not args.classic, double_width = not args.classic)
+		my_decoder.decode(my_pages[s], level = level, black_foreground = not args.classic, double_width = not args.classic, gdrcs_page = gdrcs_page, ndrcs_page = ndrcs_page)
 
 		# and then pass that result to the render which will give us the final image
 		my_pil_render = teletextrenderpil.TeletextRenderPIL()

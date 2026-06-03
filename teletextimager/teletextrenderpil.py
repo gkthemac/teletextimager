@@ -90,7 +90,8 @@ class TeletextRenderPIL:
 						continue
 					origin_x = border_lr + dc * font_width
 
-				if decoder.get_conceal(r, c) and not reveal:
+				concealed = decoder.get_conceal(r, c) and not reveal
+				if concealed:
 					char_code = 0x20
 					char_set = 0
 					char_diacritic = 0
@@ -131,26 +132,48 @@ class TeletextRenderPIL:
 				# This applies if...
 				# - the character will be enlarged
 				# - the character has a G0 diacritical mark added
+				# - the character is DRCS
 				char_im = None
 
-				diacritic_reduce = char_diacritic != 0 and char_code >= 0x41 and char_code <= 0x5a
-				# Capital letter with G0 diacritical mark has a reduced height
-				if diacritic_reduce:
-					load_font(27)
+				if decoder.get_drcs_ptu(r, c) != None and char_code != 0x00 and not concealed:
+					drcs_bitmap = decoder.get_drcs_bitmap(r, c)
+					if drcs_bitmap != None:
+						if decoder.get_drcs_mode(r, c) == 3:
+							drcs_im = Image.frombytes('P', (6, 5), drcs_bitmap)
+						else:
+							drcs_im = Image.frombytes('P', (12, 10), drcs_bitmap)
+						if decoder.get_drcs_mode(r, c) == 0:
+							drcs_im_remap = [background, foreground]
+						else:
+							drcs_im_remap = decoder.get_dclut(decoder.get_drcs_mode(r, c), decoder.get_drcs_type(r, c))
 
-				if char_diacritic != 0 or decoder.get_fragment(r, c) != decoder.Frag.NORMALSIZE:
-					# Draw cell rectangle in background colour and put the foreground character on top
-					char_im = Image.new(mode='P', size=(font_width, font_height))
-					char_im_draw = ImageDraw.Draw(char_im)
-					char_im_draw.rectangle([0, 0, font_width - 1, font_height - 1], background)
+							if decoder.get_flash_mode(r, c) == 3 and not flash_phon:
+								for i in range(len(drcs_im_remap)):
+									drcs_im_remap[i] ^= 8
+
+						# Image.point needs a 256 colour lut
+						drcs_im_remap += [0] * (256 - len(drcs_im_remap))
+						drcs_im = drcs_im.point(drcs_im_remap)
+						char_im = drcs_im.resize((font_width, font_height))
+				else:
+					diacritic_reduce = char_diacritic != 0 and char_code >= 0x41 and char_code <= 0x5a
+					# Capital letter with G0 diacritical mark has a reduced height
 					if diacritic_reduce:
-						char_set = 27
-					if char_code != 0x00:
-						char_im_draw.text((0, 0), chr(char_code), foreground, font=self.tt_font[char_set])
-					if char_diacritic != 0:
-						# Diacritical marks come from the G2 Latin set
-						load_font(7)
-						char_im_draw.text((0, 0), chr(char_diacritic + 0x40), foreground, font=self.tt_font[7])
+						load_font(27)
+
+					if char_diacritic != 0 or decoder.get_fragment(r, c) != decoder.Frag.NORMALSIZE:
+						# Draw cell rectangle in background colour and put the foreground character on top
+						char_im = Image.new(mode='P', size=(font_width, font_height))
+						char_im_draw = ImageDraw.Draw(char_im)
+						char_im_draw.rectangle([0, 0, font_width - 1, font_height - 1], background)
+						if diacritic_reduce:
+							char_set = 27
+						if char_code != 0x00:
+							char_im_draw.text((0, 0), chr(char_code), foreground, font=self.tt_font[char_set])
+						if char_diacritic != 0:
+							# Diacritical marks come from the G2 Latin set
+							load_font(7)
+							char_im_draw.text((0, 0), chr(char_diacritic + 0x40), foreground, font=self.tt_font[7])
 
 				if char_im == None:
 					# Draw cell rectangle in background colour and put the foreground character on top
