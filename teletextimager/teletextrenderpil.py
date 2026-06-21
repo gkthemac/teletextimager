@@ -61,10 +61,10 @@ class TeletextRenderPIL:
 
 		# Draw the top and bottom Full Screen Colours
 		im_draw.rectangle(
-			[0, 0, im_width - 1, border_tb - 1], fill=decoder.full_screen
+			[0, 0, im_width - 1, border_tb - 1], fill=decoder.get_full_screen()
 		)
 		im_draw.rectangle(
-			[0, im_height - border_tb, im_width - 1, im_height - 1], fill=decoder.full_screen
+			[0, im_height - border_tb, im_width - 1, im_height - 1], fill=decoder.get_full_screen()
 		)
 
 		for r in range(25):
@@ -73,10 +73,10 @@ class TeletextRenderPIL:
 			# Draw the left and right Full Row Colour for this row
 			im_draw.rectangle(
 				[0, origin_y, border_lr - 1, origin_y + font_height - 1],
-				fill=decoder.full_row[r]
+				fill=decoder.get_full_row(r)
 			)
 			im_draw.rectangle(
-				[im_width - border_lr - 1, origin_y, im_width - 1, origin_y + font_height - 1], fill=decoder.full_row[r]
+				[im_width - border_lr - 1, origin_y, im_width - 1, origin_y + font_height - 1], fill=decoder.get_full_row(r)
 			)
 
 			for c in range(72):

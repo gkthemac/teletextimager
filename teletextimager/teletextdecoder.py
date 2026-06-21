@@ -8,7 +8,6 @@ from teletextimager import teletextdrcs
 class TeletextDecode:
 	def __init__(self):
 		self.level = 3
-		self.status_bits = 0
 		self.cells = [[self.Cell() for c in range(72)] for r in range(25)]
 		self.gdrcs_bitmap = {}
 		self.ndrcs_bitmap = {}
@@ -110,6 +109,9 @@ class TeletextDecode:
 				return self.ndrcs_bitmap[(self.cells[r][c].drcs.drcs_ptu, self.cells[r][c].drcs.drcs_subtable)]
 
 	def get_foreground(self, r, c):
+		if self.transparent_page and not self.cells[r][c].attr.display.box_win:
+			return 8
+
 		result = self.cells[r][c].attr.foreground
 		if result == 8:
 			return(self.transparent(r, c))
@@ -117,6 +119,9 @@ class TeletextDecode:
 			return result
 
 	def get_background(self, r, c):
+		if self.transparent_page and not self.cells[r][c].attr.display.box_win:
+			return 8
+
 		result = self.cells[r][c].attr.background
 		if result == 8:
 			return(self.transparent(r, c))
@@ -124,6 +129,9 @@ class TeletextDecode:
 			return result
 
 	def get_flash_foreground(self, r, c):
+		if self.transparent_page and not self.cells[r][c].attr.display.box_win:
+			return 8
+
 		result = self.cells[r][c].attr.foreground ^ 8
 		if result == 8:
 			return(self.transparent(r, c))
@@ -150,6 +158,12 @@ class TeletextDecode:
 
 	def get_und_sep(self, r, c):
 		return self.cells[r][c].attr.display.und_sep
+
+	def get_full_screen(self):
+		return 8 if self.transparent_page else self.full_screen
+
+	def get_full_row(self, r):
+		return 8 if self.transparent_page else self.full_row[r]
 
 	# Getters for whole page properties
 	def get_flash_present(self):
@@ -651,15 +665,19 @@ class TeletextDecode:
 
 		default_region = page.get('region', 0)
 		default_nos = 0
+		second_region = 0xf
+		second_nos = 0x7
+
 		if 'control_bits' in page:
+			self.transparent_page = 5 in page['control_bits'] or 6 in page['control_bits']
 			if 12 in page['control_bits']:
 				default_nos |= 1
 			if 13 in page['control_bits']:
 				default_nos |= 2
 			if 14 in page['control_bits']:
 				default_nos |= 4
-		second_region = 0xf
-		second_nos = 0x7
+		else:
+			self.transparent_page = False
 
 		self.full_screen = 0
 		full_row_down = 0
@@ -1308,9 +1326,7 @@ class TeletextDecode:
 		using the logic table in C.1 of the ETSI spec.
 		Returns either the colour index, or 8 if video will show through.
 		'''
-		transparent_page = (self.status_bits & 0x03) != 0x00
-
-		if self.cells[r][c].attr.display.box_win != transparent_page:
+		if self.cells[r][c].attr.display.box_win != self.transparent_page:
 			return 8
 
 		if self.cells[r][c].frag == self.Frag.DH_BOTTOMHALF or self.cells[r][c].frag == self.Frag.DS_BOTTOMLEFTQUARTER or self.cells[r][c].frag == self.Frag.DS_BOTTOMRIGHTQUARTER:
