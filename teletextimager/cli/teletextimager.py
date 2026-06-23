@@ -57,7 +57,7 @@ def main():
 
 	in_ext = os.path.splitext(args.infile)[1]
 	my_reader = reader_from_extension(in_ext)
-	if in_ext == None:
+	if my_reader == None:
 		sys.exit('Filename extension \'{0}\' not supported'.format(in_ext))
 
 #	NOTE stdin disabled as we can't figure out the format without the extension
@@ -81,7 +81,7 @@ def main():
 	if args.gdrcs:
 		gdrcs_ext = os.path.splitext(args.gdrcs)[1]
 		gdrcs_reader = reader_from_extension(gdrcs_ext)
-		if gdrcs_ext == None:
+		if gdrcs_reader == None:
 			sys.exit('Filename extension \'{0}\' not supported'.format(gdrcs_ext))
 
 		gdrcs_page = gdrcs_reader.read(args.gdrcs)
@@ -91,7 +91,7 @@ def main():
 	if args.ndrcs:
 		ndrcs_ext = os.path.splitext(args.ndrcs)[1]
 		ndrcs_reader = reader_from_extension(ndrcs_ext)
-		if ndrcs_ext == None:
+		if ndrcs_reader == None:
 			sys.exit('Filename extension \'{0}\' not supported'.format(ndrcs_ext))
 
 		ndrcs_page = ndrcs_reader.read(args.ndrcs)
