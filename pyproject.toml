@@ -6,6 +6,7 @@ authors = [
 ]
 description = 'Python library for rendering images of teletext pages'
 readme = 'README.md'
+license = 'MIT'
 requires-python = '>=3'
 dependencies = [
 	'Pillow',
