@@ -5,7 +5,7 @@ class TeletextReadTTI:
 		'''
 		Convert a 7-bit OL line into an array of 40 bytes
 		'''
-		result = bytearray(40)
+		result = bytearray([0x20] * 40)
 		i = 0
 
 		for j in range(40):
@@ -113,10 +113,10 @@ class TeletextReadTTI:
 				# Fiddly way of extracting the line number as an integer
 				if cur_line[4] == ',':
 					pkt_no = ord(cur_line[3]) - 48
-					line_pkt = cur_line[5:]
+					line_pkt = cur_line[5:].rstrip('\r\n')
 				else:
 					pkt_no = (ord(cur_line[3]) - 48) * 10 + ord(cur_line[4]) - 48
-					line_pkt = cur_line[6:]
+					line_pkt = cur_line[6:].rstrip('\r\n')
 
 				desig_no = None
 
