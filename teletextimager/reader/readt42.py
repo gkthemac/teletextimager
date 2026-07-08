@@ -5,6 +5,47 @@ import copy
 from teletextimager.bits import hamming_8_4, hamming_24_18
 
 class TeletextReadT42:
+	def convert_7bit_packet(self, pkt):
+		'''
+		"Unparity" bits from a 7-bit packet.
+
+		:param pkt: A bytearray of 42 bytes.
+			Two bytes MRAG followed by 40 bytes coded 7-bit odd parity.
+		:returns: A bytearray of 40 bytes.
+			The last 40 bytes without MRAG and odd parity bits set to 0.
+		'''
+		for b in range(2, 42):
+			pkt[b] &= 0x7f
+
+		return pkt[2:]
+
+	def convert_18bit_packet(self, pkt):
+		'''
+		Convert a Hamming 24/18 encoded packet into a list of 13 triplets.
+
+		:param pkt: A bytearray of 42 bytes.
+			Two bytes MRAG then one byte coded Hamming 8/4 followed by 13 groups of
+			three bytes coded Hamming 24/18.
+		:returns: A list of 13 items.
+			Each entry is an integer for a successfully decoded triplet or None if
+			the triplet could not be decoded.
+		'''
+		result = []
+
+		for t in range(3, 41, 3):
+			p0 = pkt[t]
+			p1 = pkt[t + 1]
+			p2 = pkt[t + 2]
+
+			d = hamming_24_18.decode(p0, p1, p2)
+
+			if (d & 0x80000000) == 0x80000000:
+				result.append(None)
+			else:
+				result.append(d)
+
+		return result
+
 	def __init__(self):
 		# Eight pages, one for each magazine
 		self.page = [{} for _ in range(8)]
@@ -133,11 +174,9 @@ class TeletextReadT42:
 			self.pkt_0_page_no[mag_no] = None
 
 			if pkt_no < 26:
-				# X/1-25, assumes page is 7-bit odd parity coded!
-				for b in range(2, 42):
-					t42_packet[b] &= 0x7f
-
-				cur_page[pkt_no] = t42_packet[2:]
+				# X/1-25
+				# TODO assumes page is 7-bit odd parity coded!
+				cur_page[pkt_no] = self.convert_7bit_packet(t42_packet)
 				continue
 
 			# X/26, X/27 or X/28
@@ -153,21 +192,7 @@ class TeletextReadT42:
 				continue
 
 			# Packet is 13 hamming 24/18 encoded triplets
-			triplets = []
-
-			for t in range(3, 41, 3):
-				p0 = t42_packet[t]
-				p1 = t42_packet[t + 1]
-				p2 = t42_packet[t + 2]
-
-				d = hamming_24_18.decode(p0, p1, p2)
-
-				if (d & 0x80000000) == 0x80000000:
-					triplets.append(None)
-				else:
-					triplets.append(d)
-
-			cur_page[(pkt_no, desig_no)] = triplets
+			cur_page[(pkt_no, desig_no)] = self.convert_18bit_packet(t42_packet)
 
 		if source_is_file:
 			source.close()
