@@ -7,7 +7,7 @@ from teletextimager import teletextdrcs
 
 class TeletextDecode:
 	def __init__(self):
-		self.level = 3
+		self.level = 2
 		self.cells = [[self.Cell() for c in range(72)] for r in range(25)]
 		self.gdrcs_bitmap = {}
 		self.ndrcs_bitmap = {}
