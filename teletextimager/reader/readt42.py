@@ -14,10 +14,29 @@ class TeletextReadT42:
 		:returns: A bytearray of 40 bytes.
 			The last 40 bytes without MRAG and odd parity bits set to 0.
 		'''
-		for b in range(2, 42):
-			pkt[b] &= 0x7f
+		result = pkt[2:]
 
-		return pkt[2:]
+		for b in range(40):
+			result[b] &= 0x7f
+
+		return result
+
+	def convert_4bit_packet(self, pkt):
+		'''
+		Convert a Hamming 8/4 encoded packet into 40 nibbles.
+
+		:param pkt: A bytearray of 42 bytes.
+			Two bytes MRAG followed by 40 bytes coded Hamming 8/4.
+		:returns: A bytearray of 40 bytes.
+			The last 40 bytes without MRAG.
+			Each byte is a decoded nibble in lower 4 bits, or 0xff if decoding failed.
+		'''
+		result = pkt[2:]
+
+		for b in range(40):
+			result[b] = hamming_8_4.decode(result[b])
+
+		return result
 
 	def convert_18bit_packet(self, pkt):
 		'''
@@ -186,11 +205,12 @@ class TeletextReadT42:
 				# Error decoding designation code
 				continue
 
-			# X/27/0-3 is hamming 8/4 encoded
-			# We're just displaying a page so we don't need FLOF links
+			# X/27/0-3 is Hamming 8/4 encoded
 			if pkt_no == 27 and desig_no < 4:
+				cur_page[(pkt_no, desig_no)] = self.convert_4bit_packet(t42_packet)
 				continue
 
+			# We get here on X/27/4-15, X/26 or X/28
 			# Packet is 13 hamming 24/18 encoded triplets
 			cur_page[(pkt_no, desig_no)] = self.convert_18bit_packet(t42_packet)
 
