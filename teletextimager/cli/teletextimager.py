@@ -21,6 +21,8 @@ def reader_from_extension(ext):
 		return readt42.TeletextReadT42()
 	elif ext.lower() == '.ep1' or ext.lower() == '.epx':
 		return readep1.TeletextReadEP1()
+	elif ext.lower() == '.htt':
+		return readhtt.TeletextReadHTT()
 	else:
 		return None
 

@@ -71,6 +71,19 @@ class TeletextReadT42:
 		# Used for tracking consecutive X/0's with same page number
 		self.pkt_0_page_no = [None] * 8
 
+	def read_packet(self, source):
+		'''
+		Reads 42 bytes from a file object, presumed to be a t42 file.
+		This is split out so the TeletextReadHTT class can override this method
+		to convert an HTT packet to a t42 packet.
+
+		:param source: A file object.
+		:returns: A bytearray of 42 bytes, or None if less than 42 bytes was read.
+		'''
+		result = bytearray(source.read(42))
+
+		return result if len(result) == 42 else None
+
 	def read(self, source):
 		# We can take either a filename or a Python file object
 		source_is_file = False
@@ -83,8 +96,8 @@ class TeletextReadT42:
 		mag_no = None
 
 		while True:
-			t42_packet = bytearray(source.read(42))
-			if len(t42_packet) != 42:
+			t42_packet = self.read_packet(source)
+			if t42_packet == None:
 				if mag_no != None:
 					result_page = self.page[mag_no]
 				break
