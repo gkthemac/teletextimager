@@ -668,13 +668,13 @@ class TeletextDecode:
 		second_region = 0xf
 		second_nos = 0x7
 
-		if 'control_bits' in page:
-			self.transparent_page = 5 in page['control_bits'] or 6 in page['control_bits']
-			if 12 in page['control_bits']:
+		if 'control' in page:
+			self.transparent_page = 5 in page['control'] or 6 in page['control']
+			if 12 in page['control']:
 				default_nos |= 1
-			if 13 in page['control_bits']:
+			if 13 in page['control']:
 				default_nos |= 2
-			if 14 in page['control_bits']:
+			if 14 in page['control']:
 				default_nos |= 4
 		else:
 			self.transparent_page = False

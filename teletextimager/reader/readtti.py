@@ -62,7 +62,7 @@ class TeletextReadTTI:
 		# Pre-create the first page in case a PS command comes before the first PN
 		pages.append( { } )
 		cur_page = pages[-1]
-		cur_page['control_bits'] = set()
+		cur_page['control'] = set()
 		first_pn = False
 
 		for cur_line in source:
@@ -78,7 +78,7 @@ class TeletextReadTTI:
 					cur_page = pages[-1]
 					# Copy status bits from previous page in case only the first
 					# page has a PS command
-					cur_page['control_bits'] = pages[-2]['control_bits'].copy()
+					cur_page['control'] = pages[-2]['control'].copy()
 				ps_value = cur_line.rpartition(',')[-1]
 				cur_page['number'] = int(ps_value[:3], 16)
 				cur_page['subcode'] = int(ps_value[3:], 16)
@@ -89,22 +89,22 @@ class TeletextReadTTI:
 			if cur_line.startswith('PS,'):
 				status_bits = int(cur_line.rpartition(',')[-1], 16)
 				# Create an empty set
-				cur_page['control_bits'].clear()
+				cur_page['control'].clear()
 				# Get bits C5 to C11
 				for b in range(0, 7):
 					t = 1 << b
 					if (status_bits & t) == t:
-						cur_page['control_bits'].add(b + 5)
+						cur_page['control'].add(b + 5)
 				# Get bit C4
 				if (status_bits & 0x4000) == 0x4000:
-					cur_page['control_bits'].add(4)
+					cur_page['control'].add(4)
 				# Get bits C12-C14 as they seem to be stored backwards in TTI
 				if (status_bits & 0x200) == 0x200:
-					cur_page['control_bits'].add(12)
+					cur_page['control'].add(12)
 				if (status_bits & 0x100) == 0x100:
-					cur_page['control_bits'].add(13)
+					cur_page['control'].add(13)
 				if (status_bits & 0x80) == 0x80:
-					cur_page['control_bits'].add(14)
+					cur_page['control'].add(14)
 
 			if cur_line.startswith('RE,'):
 				cur_page['region'] = int(cur_line[3], 16)

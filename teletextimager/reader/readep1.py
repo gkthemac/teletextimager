@@ -31,7 +31,7 @@ class TeletextReadEP1:
 		# Create the first subpage and point to it
 		pages.append({})
 		cur_page = pages[-1]
-		cur_page['control_bits'] = set()
+		cur_page['control'] = set()
 
 		num_pages_left = 1
 		subcode = 0
@@ -62,11 +62,11 @@ class TeletextReadEP1:
 			cur_page['region'] = region
 
 			if (nos & 0x1) == 0x1:
-				cur_page['control_bits'].add(12)
+				cur_page['control'].add(12)
 			if (nos & 0x2) == 0x2:
-				cur_page['control_bits'].add(13)
+				cur_page['control'].add(13)
 			if (nos & 0x4) == 0x4:
-				cur_page['control_bits'].add(14)
+				cur_page['control'].add(14)
 
 			# If fourth byte is 0xca then "X/26 enhancements header" follows
 			# Otherwise Level 1 page data follows
@@ -119,7 +119,7 @@ class TeletextReadEP1:
 
 				pages.append({})
 				cur_page = pages[-1]
-				cur_page['control_bits'] = set()
+				cur_page['control'] = set()
 
 		if source_is_file:
 			source.close()

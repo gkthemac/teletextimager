@@ -153,7 +153,7 @@ class TeletextReadT42:
 
 				cur_page = self.page[mag_no]
 
-				cur_page['control_bits'] = set()
+				cur_page['control'] = set()
 
 				cur_page['number'] = (mag_no << 8) | page_no
 				if mag_no == 0:
@@ -163,25 +163,25 @@ class TeletextReadT42:
 
 				# Get bits C4-C6
 				if (t42_packet[5] & 0x08) == 0x08:
-					cur_page['control_bits'].add(4)
+					cur_page['control'].add(4)
 				if (t42_packet[7] & 0x04) == 0x04:
-					cur_page['control_bits'].add(5)
+					cur_page['control'].add(5)
 				if (t42_packet[7] & 0x08) == 0x08:
-					cur_page['control_bits'].add(6)
+					cur_page['control'].add(6)
 				# Get bits C7-C10
 				for b in range(0, 4):
 					t = 1 << b
 					if (t42_packet[8] & t) == t:
-						cur_page['control_bits'].add(b + 7)
+						cur_page['control'].add(b + 7)
 				# Get bits C11-C14
 				if (t42_packet[9] & 0x01) == 0x01:
-					cur_page['control_bits'].add(11)
+					cur_page['control'].add(11)
 				if (t42_packet[9] & 0x08) == 0x08:
-					cur_page['control_bits'].add(12)
+					cur_page['control'].add(12)
 				if (t42_packet[9] & 0x04) == 0x04:
-					cur_page['control_bits'].add(13)
+					cur_page['control'].add(13)
 				if (t42_packet[9] & 0x02) == 0x02:
-					cur_page['control_bits'].add(14)
+					cur_page['control'].add(14)
 
 				# "Unparity" the text in the header row
 				for b in range(10, 42):
