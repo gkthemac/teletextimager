@@ -41,9 +41,9 @@ class TeletextReadTTI:
 
 	def convert_4bit_packet(self, line_pkt):
 		'''
-		Convert a 4-bit OL line into an array of 40 bytes
+		Convert a 4-bit OL line into a list of 40 nibbles
 		'''
-		result = bytearray(40)
+		result = [0] * 40
 
 		for i in range(40):
 			if i >= len(line_pkt):
@@ -139,7 +139,8 @@ class TeletextReadTTI:
 				links = cur_line.split(',')
 				if len(links) == 7:
 					# Init packet to mostly 0xf's as page xFF:3F7F means no page is specified
-					fl_packet = bytearray([0xf] * 40)
+					fl_packet = [0xf] * 40
+
 					fl_packet[0] = 0x0  # Designation code
 					fl_packet[38] = 0x0 # CRC word
 					fl_packet[39] = 0x0 # CRC word

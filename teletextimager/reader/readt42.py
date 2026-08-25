@@ -23,18 +23,20 @@ class TeletextReadT42:
 
 	def convert_4bit_packet(self, pkt):
 		'''
-		Convert a Hamming 8/4 encoded packet into 40 nibbles.
+		Convert a Hamming 8/4 encoded packet into a list of 40 nibbles.
 
 		:param pkt: A bytearray of 42 bytes.
 			Two bytes MRAG followed by 40 bytes coded Hamming 8/4.
-		:returns: A bytearray of 40 bytes.
-			The last 40 bytes without MRAG.
-			Each byte is a decoded nibble in lower 4 bits, or 0xff if decoding failed.
+		:returns: A list of 40 nibbles.
+			Each entry is an integer for a successfully decoded nibble, or None if
+			the byte could not be decoded.
 		'''
-		result = pkt[2:]
+		result = [None] * 40
 
 		for b in range(40):
-			result[b] = hamming_8_4.decode(result[b])
+			n = hamming_8_4.decode(pkt[b + 2])
+			if n != 0xff:
+				result[b] = n
 
 		return result
 
