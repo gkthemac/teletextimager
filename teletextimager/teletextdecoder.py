@@ -410,7 +410,7 @@ class TeletextDecode:
 		for i in invoc.invokes:
 			org_r, org_c, it_address, it_mode, it_data = i
 			# Check if (sub)Object type can be invoked by Object type we're within
-			if (it_mode & 0x10) <= obj_type:
+			if (it_mode & 0x3) <= obj_type:
 				continue
 			if (it_address & 0x18) == 0x08:
 				# Local Object
