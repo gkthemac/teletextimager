@@ -67,11 +67,35 @@ class TeletextReadT42:
 
 		return result
 
+	def convert_18bit_packet_nibble(self, pkt):
+		'''
+		Convert a Hamming 24/18 encoded packet into a list of 13 triplets followed
+		by one nibble.
+
+		:param pkt: A bytearray of 42 bytes.
+			Two bytes MRAG then one byte coded Hamming 8/4 followed by 13 groups of
+			three bytes coded Hamming 24/18.
+		:returns: A list of 14 items.
+			The first 13 entries are integers for successfully decoded triplets or None
+			for triplets that could not be decoded. The last entry is an integer for
+			a successfully decoded nibble at the start of the packet or None if the
+			nibble could not be decoded.
+		'''
+		result = self.convert_18bit_packet(pkt)
+
+		n = hamming_8_4.decode(pkt[2])
+		result.append(n if n != 0xff else None)
+
+		return result
+
 	def __init__(self):
 		# Eight pages, one for each magazine
 		self.page = [{} for _ in range(8)]
 		# Used for tracking consecutive X/0's with same page number
 		self.pkt_0_page_no = [None] * 8
+		# Used for tracking page coding of a page within each magazine
+		self.page_coding = [0] * 8
+		self.convert_body_packet = [None] * 8
 
 	def read_packet(self, source):
 		'''
@@ -155,6 +179,10 @@ class TeletextReadT42:
 
 				cur_page = self.page[mag_no]
 
+				self.page_coding[mag_no] = 0
+				# Reference to function that converts X/1-X/25
+				self.convert_body_packet[mag_no] = self.convert_7bit_packet
+
 				cur_page['control'] = set()
 
 				cur_page['number'] = (mag_no << 8) | page_no
@@ -209,8 +237,7 @@ class TeletextReadT42:
 
 			if pkt_no < 26:
 				# X/1-25
-				# TODO assumes page is 7-bit odd parity coded!
-				cur_page[pkt_no] = self.convert_7bit_packet(t42_packet)
+				cur_page[pkt_no] = self.convert_body_packet[mag_no](t42_packet)
 				continue
 
 			# X/26, X/27 or X/28
@@ -228,6 +255,18 @@ class TeletextReadT42:
 			# We get here on X/27/4-15, X/26 or X/28
 			# Packet is 13 hamming 24/18 encoded triplets
 			cur_page[(pkt_no, desig_no)] = self.convert_18bit_packet(t42_packet)
+
+			# If X/28/0,2,3,4 try to discover the page coding
+			if pkt_no == 28 and desig_no <= 4 and desig_no != 1 and cur_page[(28, desig_no)] != None:
+				# page_function = cur_page[(28, desig_no)][0] & 0x0f
+				self.page_coding[mag_no] = (cur_page[(28, desig_no)][0] >> 4) & 0x07
+
+				if self.page_coding[mag_no] == 2:
+					self.convert_body_packet[mag_no] = self.convert_18bit_packet_nibble
+				elif self.page_coding[mag_no] == 3:
+					self.convert_body_packet[mag_no] = self.convert_4bit_packet
+				else:  # elif self.page_coding[mag_no] == 0:
+					self.convert_body_packet[mag_no] = self.convert_7bit_packet
 
 		if source_is_file:
 			source.close()

@@ -1,56 +1,108 @@
 #!/usr/bin/env python3
 
+from enum import IntEnum
+
 class TeletextReadTTI:
-	def convert_7bit_packet(self, line_pkt):
+	class PFSource(IntEnum):
 		'''
-		Convert a 7-bit OL line into an array of 40 bytes
+		TTI has an explicit PF command which stores the page function
+		and coding, but TTI can also carry an X/28 packet which also stores
+		that info.
+
+		We try to copy vbit2's behaviour in that if both are found, the
+		coding specified in X/28 has priority over a PF command.
+		'''
+		# Neither a PF command or X/28 was found yet
+		PF_NONE = 0
+		# PF command found
+		PF_COMMAND = 1
+		# Coding found within X/28/0 packet
+		PF_X28 = 2
+
+	def convert_7bit_packet(self, pkt):
+		'''
+		Convert a 7-bit OL line into an array of 40 bytes.
+
+		:param pkt: A string of 40 characters.
+		:returns: A bytearray of 40 bytes.
 		'''
 		result = bytearray([0x20] * 40)
 		i = 0
 
 		for j in range(40):
-			if i >= len(line_pkt):
+			if i >= len(pkt):
 				break
-			this_char = ord(line_pkt[i])
+			this_char = ord(pkt[i])
 			if (this_char & 0x80) == 0x80:
 				this_char &= 0x7f
 			elif this_char == 0x10:
 				this_char = 0x0d
 			elif this_char == 0x1b:
 				i += 1
-				this_char = ord(line_pkt[i]) & 0x1f
+				this_char = ord(pkt[i]) & 0x1f
 			result[j] = this_char
 			i += 1
 
 		return result
 
-	def convert_18bit_packet(self, line_pkt):
+	def convert_18bit_packet(self, pkt):
 		'''
-		Convert an 18-bit OL line into a list of 13 triplets
+		Convert an 18-bit OL line into a list of 13 triplets.
+
+		:param pkt: A string of 40 characters.
+		:returns: A list of 13 integers, one for each triplet.
 		'''
 		result = []
 
 		for t in range(1, 39, 3):
-			triplet1 = ord(line_pkt[t]) & 0x3f
-			triplet2 = ord(line_pkt[t+1]) & 0x3f
-			triplet3 = ord(line_pkt[t+2]) & 0x3f
+			triplet1 = ord(pkt[t]) & 0x3f
+			triplet2 = ord(pkt[t+1]) & 0x3f
+			triplet3 = ord(pkt[t+2]) & 0x3f
 			triplet = (triplet3 << 12) | (triplet2 << 6) | triplet1
 			result.append(triplet)
 
 		return result
 
-	def convert_4bit_packet(self, line_pkt):
+	def convert_18bit_packet_nibble(self, pkt):
 		'''
-		Convert a 4-bit OL line into a list of 40 nibbles
+		Convert an 18-bit OL line into a list of 13 triplets and one nibble.
+
+		:param pkt: A string of 40 characters.
+		:returns: A list of 14 integers.
+			The first 13 entries are for each triplet and the last entry is for
+			the nibble at the start of the packet.
+		'''
+		result = self.convert_18bit_packet(pkt)
+		result.append(ord(pkt[0]) & 0xf)
+
+		return result
+
+	def convert_4bit_packet(self, pkt):
+		'''
+		Convert a 4-bit OL line into a list of 40 nibbles.
+
+		:param pkt: A string of 40 characters.
+		:returns: A list of 40 integers, one for each nibble.
 		'''
 		result = [0] * 40
 
 		for i in range(40):
-			if i >= len(line_pkt):
+			if i >= len(pkt):
 				break
-			result[i] = ord(line_pkt[i]) & 0x0f
+			result[i] = ord(pkt[i]) & 0x0f
 
 		return result
+
+	def converter_from_coding(self, coding):
+		'''
+		Returns function for packet converter based on coding
+		'''
+		if coding == 2:
+			return self.convert_18bit_packet_nibble
+		elif coding == 3:
+			return self.convert_4bit_packet
+		# elif coding == 0:
+		return self.convert_7bit_packet
 
 	def read(self, source):
 		source_is_file = False
@@ -63,7 +115,13 @@ class TeletextReadTTI:
 		pages.append( { } )
 		cur_page = pages[-1]
 		cur_page['control'] = set()
+
 		first_pn = False
+
+		pf_source = self.PFSource.PF_NONE
+		page_coding = 0
+		# Reference to function that converts X/1-X/25
+		convert_body_packet = self.convert_7bit_packet
 
 		for cur_line in source:
 			if cur_line.startswith('DE,'):
@@ -109,6 +167,16 @@ class TeletextReadTTI:
 			if cur_line.startswith('RE,'):
 				cur_page['region'] = int(cur_line[3], 16)
 
+			if cur_line.startswith('PF,'):
+				pf_params = cur_line.split(',')
+				if len(pf_params) == 3 and pf_source < self.PFSource.PF_X28:
+					pf_source = self.PFSource.PF_COMMAND
+
+					# page_function = int(pf_params[1])
+					page_coding = int(pf_params[2])
+
+					convert_body_packet = self.converter_from_coding(page_coding)
+
 			if cur_line.startswith('OL,'):
 				# Fiddly way of extracting the line number as an integer
 				if cur_line[4] == ',':
@@ -120,20 +188,29 @@ class TeletextReadTTI:
 
 				desig_no = None
 
-				if pkt_no >= 26 and pkt_no <= 29:
+				if pkt_no == 0:
+					convert_packet = self.convert_7bit_packet
+				elif pkt_no >= 1 and pkt_no <= 25:
+					convert_packet = convert_body_packet
+				elif pkt_no >= 26 and pkt_no <= 29:
 					desig_no = ord(line_pkt[0]) & 0xf
 					if pkt_no == 27 and desig_no < 4:
 						convert_packet = self.convert_4bit_packet
 					else:
 						convert_packet = self.convert_18bit_packet
-				elif pkt_no >= 0 and pkt_no <= 25:
-					# TODO deal with packet encodings
-					convert_packet = self.convert_7bit_packet
 
 				if desig_no == None:
 					cur_page[pkt_no] = convert_packet(line_pkt)
 				else:
 					cur_page[(pkt_no, desig_no)] = convert_packet(line_pkt)
+
+				if pkt_no == 28 and desig_no <= 4 and desig_no != 1 and pf_source != self.PFSource.PF_X28:
+					pf_source = self.PFSource.PF_X28
+
+					# page_function = cur_page[(28, desig_no)][0] & 0x0f
+					page_coding = (cur_page[(28, desig_no)][0] >> 4) & 0x07
+
+					convert_body_packet = self.converter_from_coding(page_coding)
 
 			if cur_line.startswith('FL,'):
 				links = cur_line.split(',')
