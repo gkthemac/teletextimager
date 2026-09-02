@@ -272,6 +272,8 @@ class TeletextDecode:
 					t = 0
 					if y < 26:
 						y += 1
+						if y == 26:
+							d = 0
 					else:
 						d += 1
 						if d == 16:
@@ -407,37 +409,99 @@ class TeletextDecode:
 		and the Object pointer is valid, this function will recursively call itself to find
 		any sub-Objects invoked within that Object.
 		'''
+
 		for i in invoc.invokes:
+			# it_address, it_mode, it_data is the triplet that invokes the Object
 			org_r, org_c, it_address, it_mode, it_data = i
+
 			# Check if (sub)Object type can be invoked by Object type we're within
 			if (it_mode & 0x3) <= obj_type:
 				continue
 			if (it_address & 0x18) == 0x08:
 				# Local Object
+
+				# Search for the Object definition on this page
+				search_page = page
+
 				obj_def_y = 26;
 				obj_def_d = ((it_address & 0x01) << 3) | (it_data >> 4)
 				obj_def_t = it_data & 0x0f
 			else:
-				continue
-			# Check if the Object Definition triplet is there and if so,
-			# - if the N0-N8 bits match
-			# - if the object type is the same
-			# - and if the object is required at this Level
-			if (obj_def_y, obj_def_d) in page:
-				if self.level == 3:
-					level_filter = 0x10
+				# GPOP or POP Object
+				# Point to either the GPOP or POP page
+				if (it_address & 0x18) == 0x10:
+					obj_page = self.pop_page
+				if (it_address & 0x18) == 0x18:
+					obj_page = self.gpop_page
+
+				s1 = it_data & 0xf
+				ptr_packet = (it_address & 0x3) + 1
+				ptr_triplet = (it_data >> 5) * 3 + (it_mode & 0x3)
+				ptr_upperbits = (it_data & 0x10) == 0x10
+
+				# Have we loaded a (G)POP page?
+				if obj_page == None:
+					continue
+				# Is S1 within the range of subpages of the (G)POP page?
+				if s1 > len(obj_page)-1:
+					continue
+
+				# Search for the Object definition on the subpage of the (G)POP page
+				search_page = obj_page[s1]
+
+				# Does the pointer packet exist in the (G)POP page?
+				if not ptr_packet in search_page:
+					continue
+
+				# Get the Object number, between 0-506 or 511 if unused
+				obj_num = search_page[ptr_packet][ptr_triplet]
+
+				if ptr_upperbits:
+					obj_num >>= 9
 				else:
-					level_filter = 0x08
-				ot_address, ot_mode, ot_data = TeletextDecode.triplet_split(page[(obj_def_y, obj_def_d)][obj_def_t])
+					obj_num &= 0x1ff
+
+				if obj_num == 511:
+					continue
+
+				# Convert Object number to packet, desig code and triplet no
+				obj_def_y = obj_num // 13 + 3
+				if obj_def_y < 26:
+					obj_def_d = None
+				else:
+					obj_def_d = obj_def_y - 26
+					obj_def_y = 26
+				obj_def_t = obj_num % 13
+
+			if self.level == 3:
+				level_filter = 0x10
+			else:
+				level_filter = 0x08
+
+			# Check if the Object Definition triplet is there
+			if obj_def_d != None:
+				packet_lookup = (obj_def_y, obj_def_d)
+			else:
+				packet_lookup = obj_def_y
+
+			if packet_lookup in search_page:
+				# ot_address, ot_mode, ot_data is the first triplet of the Object definition
+				ot_address, ot_mode, ot_data = TeletextDecode.triplet_split(search_page[packet_lookup][obj_def_t])
+
+				# Now check...
+				# - if the N0-N8 bits match in the "invoke Object" and "define Object" triplets
+				# - if the Object type is the same
+				# - and if the Object is required at this Level
 				if it_data == ot_data and (it_address & 0x03) == (ot_address & 0x03) and (it_mode | 0x04) == ot_mode and (ot_address & level_filter) != 0:
 					if it_mode == 0x11:
-						self.act_invoc.append(self.Invocation2p5(page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
+						self.act_invoc.append(self.Invocation2p5(search_page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
 						self.find_objects(self.act_invoc[-1], page, 1)
 					elif it_mode == 0x12:
-						self.adp_invoc.append(self.Invocation2p5(page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
+						self.adp_invoc.append(self.Invocation2p5(search_page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
 						self.find_objects(self.adp_invoc[-1], page, 2)
 					elif it_mode == 0x13:
-						self.pas_invoc.append(self.Invocation2p5(page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
+						self.pas_invoc.append(self.Invocation2p5(search_page, obj_def_y, obj_def_d, obj_def_t, org_r, org_c))
+						# No find_objects as Passive Objects cannot invoke further Objects
 
 	def parse_char_enhancements(self, enhances):
 		'''
@@ -633,7 +697,9 @@ class TeletextDecode:
 
 		return (pkt[t+4] >> (m * 5 - 72)) & 0x1f
 
-	def decode(self, page, level='2.5', black_foreground=True, double_width=True, gdrcs_page=None, ndrcs_page=None):
+	def decode(self, page, level='2.5', black_foreground=True, double_width=True, gdrcs_page=None, ndrcs_page=None,
+		gpop_page=None, pop_page=None):
+
 		self.clear_page()
 
 		# When given a character set Region and NOS, these dictionaries are used
@@ -688,6 +754,9 @@ class TeletextDecode:
 		right_side_panel = 0
 
 		self.flash_present = 0
+
+		self.gpop_page = gpop_page
+		self.pop_page = pop_page
 
 		# Holds an instance of the Invocation class made from the Local Enhancement Data
 		local_enh = None

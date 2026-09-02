@@ -61,3 +61,9 @@ Filename of teletext page with PTUs to be used for Global DRCS character definit
 
 `--ndrcs=NDRCSFILE`\
 Filename of teletext page with PTUs to be used for Normal DRCS character definitions.
+
+`--gpop=GPOPFILE`\
+Filename of teletext page with Object definitions to be used for Global Public Object definitions.
+
+`--pop=POPFILE`\
+Filename of teletext page with Object definitions to be used for Public Object definitions.

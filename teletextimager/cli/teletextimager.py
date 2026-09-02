@@ -42,11 +42,13 @@ def main():
 	parser.add_argument('-s', '--subpage', type=int, help='select subpage in TTI file')
 	parser.add_argument('-l', '--level', default='2.5', type=level_valid, help='set decoding level')
 	parser.add_argument('-c', '--classic', action='store_true', help='disable black foreground and double width')
-	parser.add_argument('--gdrcs', metavar='GDRCSFILE', help='global DRCS page filename')
-	parser.add_argument('--ndrcs', metavar='NDRCSFILE', help='normal DRCS page filename')
 	parser.add_argument('--conceal', action='store_true', help='hide concealed text')
 	parser.add_argument('--no-header', action='store_true', help='remove header row')
 	parser.add_argument('--no-flof', action='store_true', help='remove row 24')
+	parser.add_argument('--gdrcs', metavar='GDRCSFILE', help='global DRCS page filename')
+	parser.add_argument('--ndrcs', metavar='NDRCSFILE', help='normal DRCS page filename')
+	parser.add_argument('--gpop', metavar='GPOPFILE', help='global public object page filename')
+	parser.add_argument('--pop', metavar='POPFILE', help='public object page filename')
 	args = parser.parse_args()
 
 	if args.level == '1':
@@ -82,6 +84,7 @@ def main():
 		for s in my_pages:
 			s.pop(24)
 
+	# Maybe some way of consolidating these four into a function?
 	if args.gdrcs:
 		gdrcs_ext = os.path.splitext(args.gdrcs)[1]
 		gdrcs_reader = reader_from_extension(gdrcs_ext)
@@ -102,6 +105,26 @@ def main():
 	else:
 		ndrcs_page = None
 
+	if args.gpop:
+		gpop_ext = os.path.splitext(args.gpop)[1]
+		gpop_reader = reader_from_extension(gpop_ext)
+		if gpop_reader == None:
+			sys.exit('Filename extension \'{0}\' not supported'.format(gpop_ext))
+
+		gpop_page = gpop_reader.read(args.gpop)
+	else:
+		gpop_page = None
+
+	if args.pop:
+		pop_ext = os.path.splitext(args.pop)[1]
+		pop_reader = reader_from_extension(pop_ext)
+		if pop_reader == None:
+			sys.exit('Filename extension \'{0}\' not supported'.format(pop_ext))
+
+		pop_page = pop_reader.read(args.pop)
+	else:
+		pop_page = None
+
 	my_decoder = teletextdecoder.TeletextDecode()
 
 	if args.subpage != None and in_ext.lower() == '.t42':
@@ -118,7 +141,7 @@ def main():
 		else:
 			subpage = args.subpage - 1
 
-		my_decoder.decode(my_pages[subpage], level = level, black_foreground = not args.classic, double_width = not args.classic, gdrcs_page = gdrcs_page, ndrcs_page = ndrcs_page)
+		my_decoder.decode(my_pages[subpage], level = level, black_foreground = not args.classic, double_width = not args.classic, gdrcs_page = gdrcs_page, ndrcs_page = ndrcs_page, gpop_page = gpop_page, pop_page = pop_page)
 		my_pil_render = teletextrenderpil.TeletextRenderPIL()
 		im = my_pil_render.render(my_decoder, reveal = not args.conceal, border=(24, 20))
 		im = im.resize((int(im.width * 1.2), im.height))
@@ -177,7 +200,7 @@ def main():
 
 		# Pass the subpage packets to the decoder object which will hold the results
 		# as an agnostic grid of characters, colours, enlarged fragments etc
-		my_decoder.decode(my_pages[s], level = level, black_foreground = not args.classic, double_width = not args.classic, gdrcs_page = gdrcs_page, ndrcs_page = ndrcs_page)
+		my_decoder.decode(my_pages[s], level = level, black_foreground = not args.classic, double_width = not args.classic, gdrcs_page = gdrcs_page, ndrcs_page = ndrcs_page, gpop_page = gpop_page, pop_page = pop_page)
 
 		# and then pass that result to the render which will give us the final image
 		my_pil_render = teletextrenderpil.TeletextRenderPIL()
