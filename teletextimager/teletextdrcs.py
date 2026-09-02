@@ -71,10 +71,6 @@ class TeletextDRCSDecode:
 
 		start = p % 2 * 20
 
-		# FIXME should we check all 20 D-bytes for SPACE instead of just the first D-byte?
-		if self.page[s][y][start] < 0x40:
-			return None
-
 		result = bytearray()
 
 		for i in range(start, start + 20):
