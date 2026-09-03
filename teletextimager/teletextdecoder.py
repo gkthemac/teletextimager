@@ -849,7 +849,7 @@ class TeletextDecode:
 				if pres[1] != None and (self.level == 3 or (pres[1] & 0x20) == 0x20):
 					side_panel_cols = (pres[1] >> 6) & 0xf
 					if (pres[1] & 0x8) == 0x8:
-						if side_panel_cols == 0:
+						if side_panel_cols == 0 and (pres[1] & 0x10) == 0:
 							self.left_side_panel = 16
 						else:
 							self.left_side_panel = side_panel_cols
